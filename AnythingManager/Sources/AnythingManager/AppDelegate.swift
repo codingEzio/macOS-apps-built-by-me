@@ -29,10 +29,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         manager.objectWillChange
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                Task { @MainActor in
-                    let active = self.manager.projects.contains { self.manager.isActive(projectId: $0.id) }
-                    self.updateIcon(isActive: active)
-                }
+                let active = self.manager.projects.contains { self.manager.isActive(projectId: $0.id) }
+                self.updateIcon(isActive: active)
             }
             .store(in: &cancellables)
     }
@@ -52,7 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupPanel() {
         let contentView = ContentView(manager: manager)
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 420)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 440)
         
         panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),

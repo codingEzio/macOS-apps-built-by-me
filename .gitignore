@@ -1,15 +1,48 @@
-.DS_Store
-AnythingManager/.build/
-Applications/
+# === STRICT WHITELIST ===
+# Ignore everything by default. Only explicitly allowed files and
+# directories are tracked. This prevents accidental commits of
+# screenshots, local configs, build artifacts, or other private data.
 
-# Local-only configs (sample files are tracked)
-*/config.json
+# Ignore all files/dirs at root
+*
 
-# Local-only development spec (AGENTS.sample.md is the public version)
-AGENTS.md
+# === ROOT ALLOWLIST ===
+!.gitignore
+!.gitmessage
+!README.md
+!AGENTS.sample.md
 
-# Media whitelist: ignore ALL images/videos by default.
-# Use !pattern to explicitly allow specific files that should be tracked.
+# Root directories
+!.githooks/
+!AnythingManager/
+
+# === AnythingManager ALLOWLIST ===
+# Ignore everything inside the app directory by default
+AnythingManager/*
+
+# Specific files
+!AnythingManager/config.sample.json
+!AnythingManager/Package.swift
+!AnythingManager/build-app.sh
+!AnythingManager/restart-app.sh
+!AnythingManager/README.md
+!AnythingManager/CHANGELOG.md
+
+# Subdirectories
+!AnythingManager/Scripts/
+!AnythingManager/Sources/
+!AnythingManager/Tests/
+
+# All contents inside allowed subdirectories
+!AnythingManager/Scripts/**
+!AnythingManager/Sources/**
+!AnythingManager/Tests/**
+
+# Root hooks directory contents
+!.githooks/**
+
+# === KNOWN SENSITIVE PATTERNS (defense in depth) ===
+# Even if the whitelist above misses something, these act as a safety net.
 *.png
 *.jpg
 *.jpeg
@@ -21,3 +54,16 @@ AGENTS.md
 *.mov
 *.avi
 *.mkv
+
+# Local configs (tracked sample files are whitelisted above)
+*/config.json
+AGENTS.md
+
+# Local task tracking — not for the repo
+TODO.md
+
+# macOS / build artifacts
+.DS_Store
+*.dSYM
+*.xcuserdata
+*.xcworkspace
