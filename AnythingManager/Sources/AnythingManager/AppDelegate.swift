@@ -53,7 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 440)
         
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 440),
             styleMask: [.nonactivatingPanel, .titled, .closable],
             backing: .buffered,
             defer: false

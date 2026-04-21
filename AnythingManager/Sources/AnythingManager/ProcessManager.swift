@@ -13,6 +13,8 @@ class ProcessManager: ObservableObject {
     
     private var processes: [UUID: Process] = [:]
     private var scanTimer: Timer?
+    private var configWatchTimer: Timer?
+    private var lastConfigModificationDate: Date?
     
     init() {
         configURL = Self.resolveConfigURL()
@@ -48,6 +50,43 @@ class ProcessManager: ObservableObject {
         
         scanExternalProcesses()
         startPeriodicScan()
+        startConfigFileWatcher()
+    }
+    
+    // MARK: - Config file hot-reload
+    
+    private func startConfigFileWatcher() {
+        guard let url = configURL else { return }
+        lastConfigModificationDate = modificationDate(of: url)
+        configWatchTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.checkConfigFileChanged()
+            }
+        }
+    }
+    
+    private func checkConfigFileChanged() {
+        guard let url = configURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        let currentDate = modificationDate(of: url)
+        guard let last = lastConfigModificationDate, let current = currentDate else { return }
+        if current > last {
+            lastConfigModificationDate = current
+            let oldProjects = projects
+            loadProjects()
+            if projects != oldProjects {
+                appendLog(projectId: UUID(), text: "[Config reloaded from disk]\n")
+                objectWillChange.send()
+            }
+        }
+    }
+    
+    private func modificationDate(of url: URL) -> Date? {
+        do {
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            return attrs[.modificationDate] as? Date
+        } catch {
+            return nil
+        }
     }
     
     /// One-time migration from the old UserDefaults storage to the new file-based config.

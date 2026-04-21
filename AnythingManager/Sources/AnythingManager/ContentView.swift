@@ -67,6 +67,7 @@ struct ContentView: View {
                                 manager: manager,
                                 onShowLogs: { logProject = project }
                             )
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                         }
                     }
                     .padding(.horizontal, 14)
@@ -135,6 +136,7 @@ struct ContentView: View {
             .cornerRadius(8)
             .padding(.horizontal, 14)
             .padding(.bottom, 6)
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
     
@@ -262,11 +264,13 @@ struct ProjectRow: View {
                     Button("Restart") {
                         manager.restart(project: project)
                     }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
                     Button("Stop") {
                         manager.stop(projectId: project.id)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
+                    .keyboardShortcut(".", modifiers: .command)
                 } else if isExternal {
                     Button("Take Over") {
                         manager.killConflictingPortAndStart(project: project)
@@ -284,6 +288,7 @@ struct ProjectRow: View {
                             manager.start(project: project)
                         }
                         .buttonStyle(.borderedProminent)
+                        .keyboardShortcut("r", modifiers: .command)
                     }
                 }
             }
