@@ -1,29 +1,29 @@
 import SwiftUI
-import ServiceManagement
 
 struct SettingsView: View {
     @ObservedObject var manager: ProcessManager
     @Environment(\.dismiss) private var dismiss
     @State private var launchAtLogin = false
+    @State private var savedToast = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("设置")
+                Text("Settings")
                     .font(.headline)
                 Spacer()
-                Button("完成") { dismiss() }
+                Button("Done") { dismiss() }
             }
             
             Divider()
             
-            Toggle("开机自动启动 AnythingManager", isOn: $launchAtLogin)
-                .onAppear { launchAtLogin = isLaunchAtLoginEnabled() }
+            Toggle("Launch at login", isOn: $launchAtLogin)
+                .onAppear { launchAtLogin = LaunchAtLogin.isEnabled() }
                 .onChange(of: launchAtLogin) { newValue in
-                    setLaunchAtLogin(enabled: newValue)
+                    LaunchAtLogin.setEnabled(newValue)
                 }
             
-            Text("管理项目")
+            Text("Projects")
                 .font(.subheadline)
                 .padding(.top, 8)
             
@@ -31,15 +31,15 @@ struct SettingsView: View {
                 ForEach($manager.projects) { $project in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            TextField("名称", text: $project.name)
+                            TextField("Name", text: $project.name)
                                 .textFieldStyle(.roundedBorder)
-                            TextField("端口", value: $project.port, format: .number)
+                            TextField("Port (optional)", text: portBinding(for: $project))
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 80)
+                                .frame(width: 120)
                         }
-                        TextField("路径", text: $project.path)
+                        TextField("Path", text: $project.path)
                             .textFieldStyle(.roundedBorder)
-                        TextField("启动命令", text: $project.command)
+                        TextField("Command", text: $project.command)
                             .textFieldStyle(.roundedBorder)
                     }
                     .padding(.vertical, 4)
@@ -53,19 +53,35 @@ struct SettingsView: View {
             .frame(minHeight: 180)
             
             HStack {
-                Button("添加项目") {
+                Button("Add Project") {
                     manager.projects.append(
-                        Project(id: UUID(), name: "新项目", path: "", command: "bun run dev", port: nil)
+                        Project(id: UUID(), name: "new-project", path: "", command: "bun run dev", port: nil)
                     )
                     manager.saveProjects()
                 }
                 
                 Spacer()
                 
-                Button("保存") {
-                    manager.saveProjects()
+                HStack(spacing: 8) {
+                    if savedToast {
+                        Text("Saved")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                            .transition(.opacity)
+                    }
+                    Button("Save") {
+                        manager.saveProjects()
+                        withAnimation {
+                            savedToast = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            withAnimation {
+                                savedToast = false
+                            }
+                        }
+                    }
+                    .keyboardShortcut(.defaultAction)
                 }
-                .keyboardShortcut(.defaultAction)
             }
             
             Spacer()
@@ -73,25 +89,72 @@ struct SettingsView: View {
         .padding()
         .frame(width: 480, height: 420)
     }
+    
+    private func portBinding(for project: Binding<Project>) -> Binding<String> {
+        Binding<String>(
+            get: {
+                if let port = project.wrappedValue.port {
+                    return String(port)
+                }
+                return ""
+            },
+            set: { newValue in
+                project.wrappedValue.port = Int(newValue)
+            }
+        )
+    }
 }
 
-func isLaunchAtLoginEnabled() -> Bool {
-    SMAppService.mainApp.status == .enabled
-}
-
-func setLaunchAtLogin(enabled: Bool) {
-    let service = SMAppService.mainApp
-    do {
+struct LaunchAtLogin {
+    private static var plistPath: String {
+        NSString(string: "~/Library/LaunchAgents/com.user.AnythingManager.plist").expandingTildeInPath
+    }
+    
+    private static var appPath: String {
+        let repoRoot = NSString(string: "/path/to/repo").expandingTildeInPath
+        return "\(repoRoot)/Applications/AnythingManager.app/Contents/MacOS/AnythingManager"
+    }
+    
+    static func isEnabled() -> Bool {
+        FileManager.default.fileExists(atPath: plistPath)
+    }
+    
+    static func setEnabled(_ enabled: Bool) {
         if enabled {
-            if service.status != .enabled {
-                try service.register()
-            }
+            enable()
         } else {
-            if service.status == .enabled {
-                try service.unregister()
-            }
+            disable()
         }
-    } catch {
-        print("设置开机自启失败: \(error)")
+    }
+    
+    private static func enable() {
+        let plist: [String: Any] = [
+            "Label": "com.user.AnythingManager",
+            "ProgramArguments": [appPath],
+            "RunAtLoad": true
+        ]
+        
+        do {
+            let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            let url = URL(fileURLWithPath: plistPath)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url)
+            
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            task.arguments = ["load", plistPath]
+            try? task.run()
+        } catch {
+            print("Failed to enable launch at login: \(error)")
+        }
+    }
+    
+    private static func disable() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        task.arguments = ["unload", plistPath]
+        try? task.run()
+        
+        try? FileManager.default.removeItem(atPath: plistPath)
     }
 }
