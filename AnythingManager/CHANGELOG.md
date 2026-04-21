@@ -1,15 +1,18 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 — Ghost Protocol
 
 ### Added
-- **External process detection** — On launch the app scans configured ports. If a project is already running from a previous app instance, it shows an orange **"Running (external)"** badge and a **"Take Over"** button that kills the old occupant and starts tracking a fresh Process.
-- `restart-app.sh` — One-command script that builds a fresh `.app`, kills the old menu-bar instance, and launches the new one. Existing dev servers keep running because they are independent OS processes.
+- **Smart port takeover** — Clicking **Start** on a project whose port is occupied automatically kills the old occupant and launches a fresh tracked process. No more manual "Force Start" hunting.
+- **External process detection** — On launch the app scans configured ports. If a project is already running from a previous app instance (or a stray terminal session), it shows an orange **"Running (external)"** badge and a **"Take Over"** button.
+- `restart-app.sh` — One-command rebuild-and-relaunch. Builds a fresh `.app`, kills the old menu-bar instance, and opens the new one. Dev servers keep running because they are independent OS processes.
 
 ### Fixed
 - `LaunchAtLogin` now derives the `.app` path dynamically via `Bundle.main.bundlePath` instead of hard-coding `/path/to/repo`.
 
-## 2026-04-21
+---
+
+## v0.2.0 — Solid Ground
 
 ### Added
 - **Error banners** — When a project fails to start, a red error message appears directly under the project card instead of being hidden in logs.
@@ -18,7 +21,7 @@
 - `Scripts/validate.sh` — Smoke-test script that verifies bundle structure, Info.plist, model round-trip, PortChecker logic, and that the app launches without crashing.
 
 ### Changed
-- **Architecture overhaul** — Replaced SwiftUI `MenuBarExtra` (which had a bug causing the window to close on every state change) with the industry-standard `NSStatusBar` + `NSPanel` combo.
+- **Architecture overhaul** — Replaced SwiftUI `MenuBarExtra` (which had a critical bug causing the window to close on every state change) with the industry-standard `NSStatusBar` + `NSPanel` combo.
 - **UI redesign** — Start/Stop/Restart buttons are now normal size instead of tiny `.small`. Each project shows a clear **"Running"** (green) or **"Stopped"** (grey) badge.
 - **Settings navigation** — Settings is no longer a confusing sheet; it is a full sub-page with a **"Back"** button.
 - **Stop behavior** — The UI updates immediately when you click Stop; the force-kill happens in the background after a graceful terminate attempt.
@@ -29,7 +32,9 @@
 - **Port input** — The port field in Settings now binds to a `String` instead of an optional `Int`, fixing empty/nil input UX issues.
 - **Save feedback** — Clicking Save in Settings shows a green **"Saved"** toast for 1.5 seconds.
 
-## 2026-04-21 (Initial)
+---
+
+## v0.1.0 — Genesis
 
 ### Added
 - Initial macOS menu-bar app scaffolding using Swift Package Manager.
