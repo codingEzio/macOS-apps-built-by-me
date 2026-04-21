@@ -2,18 +2,26 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_NAME="AnythingManager"
-APP_BUNDLE="$SCRIPT_DIR/../Applications/$APP_NAME.app"
+APP_BUNDLE="$SCRIPT_DIR/../Applications/AnythingManager.app"
 
 echo "Building fresh app..."
 cd "$SCRIPT_DIR"
 ./build-app.sh
 
-echo "Stopping old $APP_NAME (menu-bar app only)..."
-# Try graceful quit first; fallback to killall if frozen
-osascript -e "quit app \"$APP_NAME\"" 2>/dev/null || true
-sleep 0.5
-killall "$APP_NAME" 2>/dev/null || true
+echo "Stopping old AnythingManager..."
+# NEVER use killall — it slaughters every process with the same name.
+# We find the exact PID that belongs to the .app bundle.
+OLD_PID=$(pgrep -f "Applications/AnythingManager.app" || true)
+if [ -n "$OLD_PID" ]; then
+    echo "Found old instance PID: $OLD_PID"
+    kill "$OLD_PID" 2>/dev/null || true
+    sleep 0.5
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        kill -9 "$OLD_PID" 2>/dev/null || true
+    fi
+else
+    echo "No old instance running"
+fi
 sleep 0.3
 
 echo "Starting new version..."
@@ -21,6 +29,3 @@ open "$APP_BUNDLE"
 
 echo ""
 echo "Done."
-echo "Note: any dev servers you started through the old app keep running"
-echo "because they are separate OS processes. The new app will show them"
-echo "as 'Stopped' until you click Start (it will reconnect to the port)."

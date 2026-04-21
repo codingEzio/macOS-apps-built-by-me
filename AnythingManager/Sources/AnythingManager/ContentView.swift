@@ -25,7 +25,7 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
-        .frame(width: 380, height: 420)
+        .frame(width: 380, height: 440)
         .animation(.easeInOut(duration: 0.15), value: screen)
     }
     
@@ -44,6 +44,8 @@ struct ContentView: View {
     
     var projectsScreen: some View {
         VStack(spacing: 0) {
+            portStatusBanner
+            
             if manager.projects.isEmpty {
                 Spacer()
                 emptyState
@@ -79,6 +81,39 @@ struct ContentView: View {
         }
         .sheet(item: $logProject) { project in
             LogView(manager: manager, project: project)
+        }
+    }
+    
+    @ViewBuilder
+    var portStatusBanner: some View {
+        // Show status for the first project that has a port configured
+        if let project = manager.projects.first(where: { $0.port != nil }),
+           let port = project.port {
+            let occupants = PortChecker.processesOnPort(port)
+            if !occupants.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        Text("Port \(port) is occupied")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
+                    ForEach(occupants) { proc in
+                        Text("PID \(proc.pid) — \(proc.name)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.08))
+                .cornerRadius(8)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
+            }
         }
     }
     
