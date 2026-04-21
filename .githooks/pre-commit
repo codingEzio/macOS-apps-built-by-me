@@ -1,0 +1,33 @@
+#!/bin/bash
+# Reject commits that contain Chinese characters in commit messages or staged files.
+# Install: git config core.hooksPath .githooks
+
+# Check commit message (if this is a merge, skip)
+if [ -f "$GIT_DIR/COMMIT_EDITMSG" ]; then
+    MSG_FILE="$GIT_DIR/COMMIT_EDITMSG"
+else
+    MSG_FILE=".git/COMMIT_EDITMSG"
+fi
+
+if [ -f "$MSG_FILE" ]; then
+    if grep -P '[\x{4e00}-\x{9fff}]' "$MSG_FILE" > /dev/null 2>&1; then
+        echo "ERROR: Commit message contains Chinese characters. Use English only."
+        exit 1
+    fi
+fi
+
+# Check staged files for Chinese characters
+CHINESE_FOUND=$(git diff --cached --name-only | while read -r file; do
+    if git show ":$file" 2>/dev/null | grep -P '[\x{4e00}-\x{9fff}]' > /dev/null 2>&1; then
+        echo "$file"
+        break
+    fi
+done)
+
+if [ -n "$CHINESE_FOUND" ]; then
+    echo "ERROR: Staged file contains Chinese characters: $CHINESE_FOUND"
+    echo "All source code and docs must be in English."
+    exit 1
+fi
+
+exit 0

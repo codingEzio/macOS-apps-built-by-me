@@ -7,11 +7,13 @@ struct Project: Identifiable, Codable, Equatable {
     var command: String
     var port: Int?
     
-    static func defaultProject() -> Project {
+    /// A placeholder project used when no config exists yet.
+    /// All values are intentionally generic so no personal paths leak into source.
+    static func placeholder() -> Project {
         Project(
             id: UUID(),
-            name: "anything",
-            path: NSString(string: "/path/to/project").expandingTildeInPath,
+            name: "your-project",
+            path: "/path/to/your/project",
             command: "bun run dev",
             port: 3000
         )

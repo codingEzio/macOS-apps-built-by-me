@@ -2,3 +2,9 @@
 AnythingManager/.build/
 Applications/
 *.webp
+
+# Local-only configs (sample files are tracked)
+*/config.json
+
+# Local-only development spec (AGENTS.sample.md is the public version)
+AGENTS.md

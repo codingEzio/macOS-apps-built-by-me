@@ -8,29 +8,112 @@ class ProcessManager: ObservableObject {
     @Published var errors: [UUID: String] = [:]
     @Published var externalRunning: Set<UUID> = []
     @Published var startingProjects: Set<UUID> = []
+    @Published var configURL: URL?
+    @Published var configMissing: Bool = false
     
     private var processes: [UUID: Process] = [:]
     private var scanTimer: Timer?
     
-    /// Path to the JSON config file on disk.
-    static var configFileURL: URL {
-        let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDir = supportDir.appendingPathComponent("AnythingManager", isDirectory: true)
-        return appDir.appendingPathComponent("projects.json")
-    }
-    
     init() {
-        loadProjects()
-        if projects.isEmpty {
-            projects = [Project.defaultProject()]
+        if let url = Self.resolveConfigURL() {
+            configURL = url
+            loadProjects()
+        } else {
+            configMissing = true
+        }
+        
+        if projects.isEmpty && !configMissing {
+            projects = [Project.placeholder()]
             saveProjects()
         }
+        
         scanExternalProcesses()
         startPeriodicScan()
     }
     
-    /// Re-scan port occupancy every 3 seconds so the UI stays in sync
-    /// with dev servers started from the terminal.
+    /// Binds the manager to a user-selected config file and loads it.
+    func setConfigURL(_ url: URL) {
+        configURL = url
+        configMissing = false
+        loadProjects()
+        if projects.isEmpty {
+            if let sampleURL = Self.resolveSampleConfigURL() {
+                do {
+                    let data = try Data(contentsOf: sampleURL)
+                    projects = try JSONDecoder().decode([Project].self, from: data)
+                } catch {
+                    projects = [Project.placeholder()]
+                }
+            } else {
+                projects = [Project.placeholder()]
+            }
+            saveProjects()
+        }
+        objectWillChange.send()
+    }
+    
+    // MARK: - Config resolution
+    
+    /// Tries to find config.json in multiple locations:
+    /// 1. Relative to the source file (dev / swift run)
+    /// 2. Inside the app bundle's Resources
+    /// 3. Sibling of the .app bundle
+    static func resolveConfigURL() -> URL? {
+        // 1. Dev mode: relative to this source file
+        let sourceFile = URL(fileURLWithPath: #file)
+        let devConfig = sourceFile
+            .deletingLastPathComponent() // AnythingManager/
+            .deletingLastPathComponent() // Sources/
+            .deletingLastPathComponent() // AnythingManager/
+            .appendingPathComponent("config.json")
+        if FileManager.default.fileExists(atPath: devConfig.path) {
+            return devConfig
+        }
+        
+        // 2. Bundle Resources
+        if let resource = Bundle.main.url(forResource: "config", withExtension: "json") {
+            return resource
+        }
+        
+        // 3. Sibling of .app bundle
+        if Bundle.main.bundlePath.hasSuffix(".app") {
+            let sibling = URL(fileURLWithPath: Bundle.main.bundlePath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("config.json")
+            if FileManager.default.fileExists(atPath: sibling.path) {
+                return sibling
+            }
+        }
+        
+        return nil
+    }
+    
+    static func resolveSampleConfigURL() -> URL? {
+        let sourceFile = URL(fileURLWithPath: #file)
+        let devSample = sourceFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("config.sample.json")
+        if FileManager.default.fileExists(atPath: devSample.path) {
+            return devSample
+        }
+        if let resource = Bundle.main.url(forResource: "config.sample", withExtension: "json") {
+            return resource
+        }
+        if Bundle.main.bundlePath.hasSuffix(".app") {
+            let sibling = URL(fileURLWithPath: Bundle.main.bundlePath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("config.sample.json")
+            if FileManager.default.fileExists(atPath: sibling.path) {
+                return sibling
+            }
+        }
+        return nil
+    }
+    
+    // MARK: - Periodic scan
+    
     private func startPeriodicScan() {
         scanTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -47,7 +130,6 @@ class ProcessManager: ObservableObject {
                 detected.insert(project.id)
             }
         }
-        // Only publish if changed to avoid needless SwiftUI redraws
         if detected != externalRunning {
             externalRunning = detected
         }
@@ -82,7 +164,6 @@ class ProcessManager: ObservableObject {
         externalRunning.remove(project.id)
         startingProjects.insert(project.id)
         
-        // If port is occupied, reclaim it
         if let port = project.port, PortChecker.isPortInUse(port) {
             appendLog(projectId: project.id, text: "[Port \(port) occupied — reclaiming]\n")
             PortChecker.killPort(port)
@@ -106,7 +187,6 @@ class ProcessManager: ObservableObject {
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        // -i forces interactive mode so .zshrc is fully sourced (fixes PATH for bun)
         process.arguments = ["-il", "-c", "cd \(expandedPath) && \(project.command)"]
         
         let pipe = Pipe()
@@ -151,7 +231,6 @@ class ProcessManager: ObservableObject {
             return
         }
         
-        // Check at 1s, 3s, 6s, 10s — some dev servers are very slow on first compile
         let checks: [TimeInterval] = [1.0, 3.0, 6.0, 10.0]
         for delay in checks {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -219,38 +298,29 @@ class ProcessManager: ObservableObject {
         }
     }
     
-    // MARK: - Config file persistence
+    // MARK: - Persistence
     
     func saveProjects() {
-        let url = Self.configFileURL
+        guard let url = configURL else { return }
         do {
             let data = try JSONEncoder().encode(projects)
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: url)
         } catch {
-            print("[AnythingManager] Failed to save projects: \(error)")
+            print("[AnythingManager] Failed to save config: \(error)")
         }
     }
     
     private func loadProjects() {
-        let url = Self.configFileURL
+        guard let url = configURL else { return }
         guard FileManager.default.fileExists(atPath: url.path) else {
-            // Fall back to UserDefaults for backward compatibility
-            if let data = UserDefaults.standard.data(forKey: "anything_manager_projects"),
-               let decoded = try? JSONDecoder().decode([Project].self, from: data) {
-                projects = decoded
-                // Migrate to file
-                saveProjects()
-                UserDefaults.standard.removeObject(forKey: "anything_manager_projects")
-            }
+            projects = []
             return
         }
-        
         do {
             let data = try Data(contentsOf: url)
             projects = try JSONDecoder().decode([Project].self, from: data)
         } catch {
-            print("[AnythingManager] Failed to load projects: \(error)")
+            print("[AnythingManager] Failed to load config: \(error)")
             projects = []
         }
     }

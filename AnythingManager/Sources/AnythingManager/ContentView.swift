@@ -11,11 +11,20 @@ struct ContentView: View {
     }
     
     var body: some View {
+        Group {
+            if manager.configMissing {
+                ConfigMissingView(manager: manager)
+            } else {
+                mainView
+            }
+        }
+        .frame(width: 380, height: 440)
+    }
+    
+    var mainView: some View {
         VStack(spacing: 0) {
             header
-            
             Divider().padding(.vertical, 10)
-            
             switch screen {
             case .projects:
                 projectsScreen
@@ -25,7 +34,6 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
-        .frame(width: 380, height: 440)
         .animation(.easeInOut(duration: 0.15), value: screen)
     }
     
@@ -86,7 +94,6 @@ struct ContentView: View {
     
     @ViewBuilder
     var portStatusBanner: some View {
-        // Show a banner for every project that has a port configured and is occupied
         let occupiedProjects = manager.projects.compactMap { project -> (Project, [PortProcessInfo])? in
             guard let port = project.port else { return nil }
             let occupants = PortChecker.processesOnPort(port)
@@ -145,6 +152,67 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
+    }
+}
+
+struct ConfigMissingView: View {
+    @ObservedObject var manager: ProcessManager
+    @State private var showPicker = false
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "doc.badge.gearshape")
+                .font(.system(size: 40))
+                .foregroundColor(.accentColor)
+            
+            Text("Config file not found")
+                .font(.headline)
+            
+            Text("The app looks for config.json next to the app bundle or in the source directory. You can also select one manually.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+            
+            Button("Select config.json…") {
+                pickConfigFile()
+            }
+            .controlSize(.large)
+            
+            if let sample = ProcessManager.resolveSampleConfigURL() {
+                Button("Use sample config") {
+                    let panel = NSSavePanel()
+                    panel.allowedContentTypes = [.json]
+                    panel.nameFieldStringValue = "config.json"
+                    panel.directoryURL = sample.deletingLastPathComponent()
+                    if panel.runModal() == .OK, let url = panel.url {
+                        do {
+                            let data = try Data(contentsOf: sample)
+                            try data.write(to: url)
+                            manager.setConfigURL(url)
+                        } catch {
+                            print("[AnythingManager] Failed to copy sample: \(error)")
+                        }
+                    }
+                }
+                .font(.caption)
+            }
+            
+            Spacer()
+        }
+        .padding()
+    }
+    
+    private func pickConfigFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.json]
+        panel.message = "Select a config.json file"
+        if panel.runModal() == .OK, let url = panel.url {
+            manager.setConfigURL(url)
+        }
     }
 }
 

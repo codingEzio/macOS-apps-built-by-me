@@ -60,7 +60,7 @@ struct SettingsView: View {
                         .font(.subheadline)
                     Spacer()
                     Button(action: {
-                        let url = ProcessManager.configFileURL
+                        guard let url = manager.configURL else { return }
                         NSWorkspace.shared.open(url.deletingLastPathComponent())
                     }) {
                         Image(systemName: "folder")
@@ -68,10 +68,18 @@ struct SettingsView: View {
                     }
                     .font(.caption)
                     .controlSize(.small)
-                    .help(ProcessManager.configFileURL.path)
+                    .disabled(manager.configURL == nil)
                 }
                 
-                Text("Edit \(ProcessManager.configFileURL.lastPathComponent) directly to batch-configure projects.")
+                if let url = manager.configURL {
+                    Text(url.path)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                
+                Text("Edit config.json directly to batch-configure projects.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 
@@ -187,19 +195,16 @@ struct LaunchAtLogin {
         NSString(string: "~/Library/LaunchAgents/com.user.AnythingManager.plist").expandingTildeInPath
     }
     
-    /// Derives the .app path dynamically. When running inside a bundled .app we use Bundle.main.
-    /// During development (swift run) we fall back to the repo-relative Applications folder.
     static var appPath: String {
         let bundle = Bundle.main
         if bundle.bundlePath.hasSuffix(".app") {
             return bundle.bundlePath
         }
-        // Development fallback: derive from this source file location.
-        let sourceFile = URL(fileURLWithPath: #file)
-        let repoRoot = sourceFile
-            .deletingLastPathComponent() // AnythingManager/
-            .deletingLastPathComponent() // Sources/
-            .deletingLastPathComponent() // AnythingManager/
+        let binaryPath = Bundle.main.executablePath ?? ProcessInfo.processInfo.arguments[0]
+        let binaryURL = URL(fileURLWithPath: binaryPath)
+        let repoRoot = binaryURL
+            .deletingLastPathComponent() // .build/debug/
+            .deletingLastPathComponent() // .build/
             .deletingLastPathComponent() // repo root
         return repoRoot
             .appendingPathComponent("Applications")

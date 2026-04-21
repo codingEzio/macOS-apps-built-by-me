@@ -16,6 +16,15 @@ mkdir -p "$OUTPUT_DIR/$APP_NAME/Contents/MacOS"
 
 cp "$BUILD_DIR/AnythingManager" "$OUTPUT_DIR/$APP_NAME/Contents/MacOS/"
 
+# Copy config files into bundle Resources so the app can find them
+mkdir -p "$OUTPUT_DIR/$APP_NAME/Contents/Resources"
+if [ -f "$REPO_ROOT/AnythingManager/config.json" ]; then
+    cp "$REPO_ROOT/AnythingManager/config.json" "$OUTPUT_DIR/$APP_NAME/Contents/Resources/"
+fi
+if [ -f "$REPO_ROOT/AnythingManager/config.sample.json" ]; then
+    cp "$REPO_ROOT/AnythingManager/config.sample.json" "$OUTPUT_DIR/$APP_NAME/Contents/Resources/"
+fi
+
 cat > "$OUTPUT_DIR/$APP_NAME/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
