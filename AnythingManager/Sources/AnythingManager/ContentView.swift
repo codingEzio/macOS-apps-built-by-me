@@ -98,12 +98,20 @@ struct ProjectRow: View {
         manager.isRunning(projectId: project.id)
     }
     
+    var isExternal: Bool {
+        manager.externalRunning.contains(project.id)
+    }
+    
+    var isActive: Bool {
+        isRunning || isExternal
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(isRunning ? Color.green : Color.red)
+                        .fill(isActive ? Color.green : Color.red)
                         .frame(width: 10, height: 10)
                     Text(project.name)
                         .font(.system(size: 14, weight: .semibold))
@@ -120,6 +128,11 @@ struct ProjectRow: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
+                } else if isExternal {
+                    Button("Take Over") {
+                        manager.killConflictingPortAndStart(project: project)
+                    }
+                    .tint(.orange)
                 } else {
                     let occupied = project.port.map { PortChecker.isPortInUse($0) } ?? false
                     if occupied {
@@ -137,20 +150,22 @@ struct ProjectRow: View {
             }
             
             HStack(spacing: 6) {
-                Text(isRunning ? "Running" : "Stopped")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(isRunning ? .green : .secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(isRunning ? Color.green.opacity(0.12) : Color.gray.opacity(0.12))
-                    .cornerRadius(4)
+                if isRunning {
+                    Text("Running")
+                        .statusTag(color: .green)
+                } else if isExternal {
+                    Text("Running (external)")
+                        .statusTag(color: .orange)
+                } else {
+                    Text("Stopped")
+                        .statusTag(color: .secondary, bgOpacity: 0.12)
+                }
                 
                 if let port = project.port {
                     Text(":\(port)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    if PortChecker.isPortInUse(port) && !isRunning {
+                    if PortChecker.isPortInUse(port) && !isActive {
                         Text("occupied")
                             .font(.caption2)
                             .foregroundColor(.orange)
@@ -168,7 +183,7 @@ struct ProjectRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             
-            if isRunning {
+            if isActive {
                 Button("Show Logs") {
                     onShowLogs()
                 }
@@ -178,6 +193,19 @@ struct ProjectRow: View {
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(10)
+    }
+}
+
+extension Text {
+    func statusTag(color: Color, bgOpacity: Double = 0.15) -> some View {
+        self
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .foregroundColor(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(bgOpacity))
+            .cornerRadius(4)
     }
 }
 
