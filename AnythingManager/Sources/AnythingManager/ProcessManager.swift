@@ -7,6 +7,8 @@ class ProcessManager: ObservableObject {
     @Published var projects: [Project] = []
     @Published var logs: [UUID: String] = [:]
     @Published var errors: [UUID: String] = [:]
+    /// Projects whose configured port is occupied but are not tracked by this instance.
+    @Published var externalRunning: Set<UUID> = []
     
     private var processes: [UUID: Process] = [:]
     
@@ -16,11 +18,30 @@ class ProcessManager: ObservableObject {
             projects = [Project.defaultProject()]
             saveProjects()
         }
+        scanExternalProcesses()
+    }
+    
+    /// Checks configured ports to see if a project is already running
+    /// from a previous app instance or external launch.
+    func scanExternalProcesses() {
+        var detected: Set<UUID> = []
+        for project in projects {
+            guard let port = project.port else { continue }
+            if PortChecker.isPortInUse(port) && processes[project.id] == nil {
+                detected.insert(project.id)
+            }
+        }
+        externalRunning = detected
     }
     
     func isRunning(projectId: UUID) -> Bool {
         guard let process = processes[projectId] else { return false }
         return process.isRunning
+    }
+    
+    /// True if the project is either tracked by us or detected externally.
+    func isActive(projectId: UUID) -> Bool {
+        isRunning(projectId: projectId) || externalRunning.contains(projectId)
     }
     
     func start(project: Project) {
@@ -29,8 +50,9 @@ class ProcessManager: ObservableObject {
             return
         }
         
-        // Clear any stale error
+        // Clear any stale error / external flag
         errors.removeValue(forKey: project.id)
+        externalRunning.remove(project.id)
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -67,10 +89,16 @@ class ProcessManager: ObservableObject {
     }
     
     func stop(projectId: UUID) {
-        guard let process = processes[projectId] else { return }
+        guard let process = processes[projectId] else {
+            // If it is running externally, just clear the flag
+            externalRunning.remove(projectId)
+            objectWillChange.send()
+            return
+        }
         
         appendLog(projectId: projectId, text: "[Stopping…]\n")
         errors.removeValue(forKey: projectId)
+        externalRunning.remove(projectId)
         
         // Immediately remove from tracking so UI updates right away
         processes.removeValue(forKey: projectId)
@@ -99,6 +127,7 @@ class ProcessManager: ObservableObject {
             appendLog(projectId: project.id, text: "[Killing process on port \(port)]\n")
             PortChecker.killPort(port)
         }
+        externalRunning.remove(project.id)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
             self?.start(project: project)
         }
