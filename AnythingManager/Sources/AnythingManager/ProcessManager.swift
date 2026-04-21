@@ -1,10 +1,12 @@
 import Foundation
 import Combine
 
+/// Manages running external projects (e.g. bun dev servers) as child processes.
 @MainActor
 class ProcessManager: ObservableObject {
     @Published var projects: [Project] = []
     @Published var logs: [UUID: String] = [:]
+    @Published var errors: [UUID: String] = [:]
     
     private var processes: [UUID: Process] = [:]
     
@@ -26,6 +28,9 @@ class ProcessManager: ObservableObject {
             appendLog(projectId: project.id, text: "[Already running]\n")
             return
         }
+        
+        // Clear any stale error
+        errors.removeValue(forKey: project.id)
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -55,7 +60,9 @@ class ProcessManager: ObservableObject {
             appendLog(projectId: project.id, text: "[Started]\n")
             objectWillChange.send()
         } catch {
-            appendLog(projectId: project.id, text: "[Start failed: \(error.localizedDescription)]\n")
+            let msg = "Start failed: \(error.localizedDescription)"
+            errors[project.id] = msg
+            appendLog(projectId: project.id, text: "[\(msg)]\n")
         }
     }
     
@@ -63,6 +70,7 @@ class ProcessManager: ObservableObject {
         guard let process = processes[projectId] else { return }
         
         appendLog(projectId: projectId, text: "[Stopping…]\n")
+        errors.removeValue(forKey: projectId)
         
         // Immediately remove from tracking so UI updates right away
         processes.removeValue(forKey: projectId)
