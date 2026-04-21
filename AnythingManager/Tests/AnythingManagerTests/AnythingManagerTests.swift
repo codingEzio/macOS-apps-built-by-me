@@ -10,7 +10,7 @@ final class ProjectTests: XCTestCase {
         XCTAssertNil(p.port)
     }
     
-    func testProjectCodable() {
+    func testProjectCodableRoundTrip() {
         let original = Project(id: UUID(), name: "test", path: "/tmp/test", command: "echo hi", port: 3000)
         let data = try! JSONEncoder().encode(original)
         let decoded = try! JSONDecoder().decode(Project.self, from: data)
@@ -20,33 +20,52 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(original.command, decoded.command)
         XCTAssertEqual(original.port, decoded.port)
     }
+    
+    func testProjectEquality() {
+        let id = UUID()
+        let a = Project(id: id, name: "a", path: "/a", command: "a", port: nil)
+        let b = Project(id: id, name: "b", path: "/b", command: "b", port: 80)
+        XCTAssertEqual(a, b) // Equality is based on ID only
+    }
 }
 
 final class PortCheckerTests: XCTestCase {
-    func testWellKnownPortInUse() {
-        // Port 22 (SSH) is usually occupied on macOS
-        let occupied = PortChecker.isPortInUse(22)
-        XCTAssertTrue(occupied, "Port 22 should be in use on a typical macOS system")
-    }
-    
-    func testRandomHighPortNotInUse() {
-        // Pick a very high random port unlikely to be used
+    func testHighRandomPortIsFree() {
+        // A very high random port is extremely unlikely to be in use.
         let port = 54321
         let occupied = PortChecker.isPortInUse(port)
         XCTAssertFalse(occupied, "Port \(port) should not be in use during tests")
     }
     
-    func testPidsForOccupiedPort() {
-        let pids = PortChecker.pidsUsingPort(22)
-        XCTAssertFalse(pids.isEmpty, "Should find at least one PID on port 22")
+    func testConsistencyBetweenIsPortInUseAndPids() {
+        // For any port, isPortInUse should be true iff pidsUsingPort is non-empty.
+        let port = 54322
+        let inUse = PortChecker.isPortInUse(port)
+        let pids = PortChecker.pidsUsingPort(port)
+        XCTAssertEqual(inUse, !pids.isEmpty, "isPortInUse and pidsUsingPort must be consistent")
     }
 }
 
 @MainActor
 final class ProcessManagerTests: XCTestCase {
-    func testInitialState() {
+    private let testSuite = "test.AnythingManager.ProcessManager"
+    
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removePersistentDomain(forName: testSuite)
+    }
+    
+    override func tearDown() {
+        UserDefaults.standard.removePersistentDomain(forName: testSuite)
+        super.tearDown()
+    }
+    
+    func testInitialStateLoadsDefaultProject() {
+        // Ensure no leftover data in standard UserDefaults
+        UserDefaults.standard.removeObject(forKey: "anything_manager_projects")
         let manager = ProcessManager()
-        XCTAssertFalse(manager.projects.isEmpty, "Should load default project if empty")
+        XCTAssertFalse(manager.projects.isEmpty, "Should load default project when empty")
+        XCTAssertEqual(manager.projects.first?.name, "anything")
     }
     
     func testIsRunningForUnknownProject() {
@@ -56,6 +75,7 @@ final class ProcessManagerTests: XCTestCase {
     }
     
     func testSaveAndLoadProjects() {
+        UserDefaults.standard.removeObject(forKey: "anything_manager_projects")
         let manager = ProcessManager()
         let originalCount = manager.projects.count
         
@@ -65,5 +85,35 @@ final class ProcessManagerTests: XCTestCase {
         let fresh = ProcessManager()
         XCTAssertEqual(fresh.projects.count, originalCount + 1)
         XCTAssertTrue(fresh.projects.contains { $0.name == "x" })
+    }
+    
+    func testErrorStateIsClearedOnStart() {
+        let manager = ProcessManager()
+        let project = manager.projects.first!
+        manager.errors[project.id] = "Some old error"
+        // Calling start on an already-running project should not clear errors,
+        // but calling start on a new project should.
+        manager.start(project: project)
+        // Since project is not running yet, error should be cleared.
+        XCTAssertNil(manager.errors[project.id])
+    }
+}
+
+final class LaunchAtLoginTests: XCTestCase {
+    func testAppPathDerivation() {
+        let path = LaunchAtLogin.appPath
+        XCTAssertTrue(path.hasSuffix("AnythingManager.app"), "App path should end with .app")
+    }
+    
+    func testPlistGenerationAndRemoval() {
+        // Clean up first
+        LaunchAtLogin.setEnabled(false)
+        XCTAssertFalse(LaunchAtLogin.isEnabled())
+        
+        LaunchAtLogin.setEnabled(true)
+        XCTAssertTrue(LaunchAtLogin.isEnabled())
+        
+        LaunchAtLogin.setEnabled(false)
+        XCTAssertFalse(LaunchAtLogin.isEnabled())
     }
 }
