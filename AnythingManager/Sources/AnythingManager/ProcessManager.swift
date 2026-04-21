@@ -10,6 +10,7 @@ class ProcessManager: ObservableObject {
     @Published var startingProjects: Set<UUID> = []
     
     private var processes: [UUID: Process] = [:]
+    private var scanTimer: Timer?
     
     init() {
         loadProjects()
@@ -18,6 +19,17 @@ class ProcessManager: ObservableObject {
             saveProjects()
         }
         scanExternalProcesses()
+        startPeriodicScan()
+    }
+    
+    /// Re-scan port occupancy every 3 seconds so the UI stays in sync
+    /// with dev servers started from the terminal.
+    private func startPeriodicScan() {
+        scanTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.scanExternalProcesses()
+            }
+        }
     }
     
     func scanExternalProcesses() {
@@ -28,7 +40,10 @@ class ProcessManager: ObservableObject {
                 detected.insert(project.id)
             }
         }
-        externalRunning = detected
+        // Only publish if changed to avoid needless SwiftUI redraws
+        if detected != externalRunning {
+            externalRunning = detected
+        }
     }
     
     func isRunning(projectId: UUID) -> Bool {

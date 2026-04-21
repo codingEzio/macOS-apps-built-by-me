@@ -86,34 +86,48 @@ struct ContentView: View {
     
     @ViewBuilder
     var portStatusBanner: some View {
-        // Show status for the first project that has a port configured
-        if let project = manager.projects.first(where: { $0.port != nil }),
-           let port = project.port {
+        // Show a banner for every project that has a port configured and is occupied
+        let occupiedProjects = manager.projects.compactMap { project -> (Project, [PortProcessInfo])? in
+            guard let port = project.port else { return nil }
             let occupants = PortChecker.processesOnPort(port)
-            if !occupants.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                        Text("Port \(port) is occupied")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.orange)
-                        Spacer()
-                    }
-                    ForEach(occupants) { proc in
-                        Text("PID \(proc.pid) — \(proc.name)")
+            return occupants.isEmpty ? nil : (project, occupants)
+        }
+        
+        if !occupiedProjects.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("Port occupied")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+                ForEach(occupiedProjects, id: \.0.id) { project, occupants in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(project.name) :\(project.port ?? 0)")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
+                        ForEach(occupants) { proc in
+                            if let ppid = proc.ppid, let parentName = proc.parentName {
+                                Text("  PID \(proc.pid) \(proc.name) ← PPID \(ppid) \(parentName)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("  PID \(proc.pid) \(proc.name)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
                 }
-                .padding(8)
-                .background(Color.orange.opacity(0.08))
-                .cornerRadius(8)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 6)
             }
+            .padding(10)
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(8)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 6)
         }
     }
     
