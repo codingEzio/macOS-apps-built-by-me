@@ -6,11 +6,12 @@ A dead-simple macOS menu-bar app to start, stop, and monitor local dev projects 
 
 - Lives in your menu bar — click the icon to see your projects.
 - **Start / Stop / Restart** any project with one click.
-- **Smart port takeover** — If a project's port is occupied (even by a stray terminal session), clicking **Start** automatically kills the old process and launches a fresh tracked one.
+- **Smart port takeover** — If a project's port is occupied (even by a stray terminal session), clicking **Start** automatically kills the old process, waits for the port to be fully released, and launches a fresh tracked one.
+- **No more false "Running" states** — After starting, the app checks the configured port at 2s and 5s. If the port never comes up (e.g. bun silently fails with `EADDRINUSE`), it stops the process and shows a clear error instead of pretending everything is fine.
 - **Survives app restarts** — Rebuild and relaunch the menu-bar app via `./restart-app.sh`. Existing dev servers keep running, and the new app detects them with an orange **"Running (external)"** badge. Click **Take Over** to reclaim control instantly.
 - **Launch at login** — Enable in Settings and the app starts automatically.
 - **Per-project logs** — View the last 10K characters of output in a built-in log window.
-- **Menu-bar icon state** — The bolt icon glows green while your projects are running, and turns gray when everything is stopped.
+- **Menu-bar icon state** — The bolt icon glows green while your projects are running, and turns gray when everything is stopped. Works in both dark and light menu bars.
 
 ## Requirements
 
@@ -43,7 +44,7 @@ The `.app` is placed in `../Applications/` so all your menu-bar apps live in one
 | `Sources/AnythingManager/AppDelegate.swift` | `NSStatusBar` + `NSPanel` setup, menu-bar icon state |
 | `Sources/AnythingManager/ContentView.swift` | Main UI — project cards, start/stop |
 | `Sources/AnythingManager/SettingsView.swift` | Settings — edit projects, toggle login item |
-| `Sources/AnythingManager/ProcessManager.swift` | Spawns and kills child processes, scans external ports |
+| `Sources/AnythingManager/ProcessManager.swift` | Spawns and kills child processes, health-checks ports |
 | `Sources/AnythingManager/PortChecker.swift` | Uses `lsof` to check/kill ports |
 | `Sources/AnythingManager/Project.swift` | Codable project model |
 | `Scripts/validate.sh` | Smoke tests — bundle sanity, model round-trip, launch check |
@@ -65,6 +66,9 @@ The `.app` is placed in `../Applications/` so all your menu-bar apps live in one
 
 **"Take Over" is shown but I didn't restart the app**
 - Another app or terminal window is using that port. Click **Take Over** (or just **Start**) to replace it.
+
+**It says "Running" but localhost is not responding**
+- The app performs a health-check after starting. If the configured port never comes up, it will automatically stop the process and show a red error. Make sure the **Port** in Settings matches the port your dev server actually binds to.
 
 ## Notes
 
