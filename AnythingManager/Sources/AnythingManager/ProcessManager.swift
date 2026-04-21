@@ -22,7 +22,10 @@ class ProcessManager: ObservableObject {
     }
     
     func start(project: Project) {
-        guard processes[project.id] == nil || !processes[project.id]!.isRunning else { return }
+        guard processes[project.id] == nil || !processes[project.id]!.isRunning else {
+            appendLog(projectId: project.id, text: "[Already running]\n")
+            return
+        }
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -34,12 +37,9 @@ class ProcessManager: ObservableObject {
         
         pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            if let str = String(data: data, encoding: .utf8), !str.isEmpty {
-                Task { @MainActor [weak self] in
-                    let current = self?.logs[project.id] ?? ""
-                    let trimmed = (current + str).suffix(5000)
-                    self?.logs[project.id] = String(trimmed)
-                }
+            guard let str = String(data: data, encoding: .utf8), !str.isEmpty else { return }
+            Task { @MainActor [weak self] in
+                self?.appendLog(projectId: project.id, text: str)
             }
         }
         
@@ -52,36 +52,46 @@ class ProcessManager: ObservableObject {
         do {
             try process.run()
             processes[project.id] = process
+            appendLog(projectId: project.id, text: "[Started]\n")
             objectWillChange.send()
         } catch {
-            logs[project.id, default: ""] += "\n启动失败: \(error.localizedDescription)\n"
+            appendLog(projectId: project.id, text: "[Start failed: \(error.localizedDescription)]\n")
         }
     }
     
     func stop(projectId: UUID) {
         guard let process = processes[projectId] else { return }
+        
+        appendLog(projectId: projectId, text: "[Stopping…]\n")
+        
+        // Immediately remove from tracking so UI updates right away
+        processes.removeValue(forKey: projectId)
+        objectWillChange.send()
+        
+        // Try graceful terminate first
         process.terminate()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        
+        // If it's still there after a moment, force kill on a background queue
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.0) {
             if process.isRunning {
                 kill(process.processIdentifier, 9)
             }
-            self?.processes.removeValue(forKey: projectId)
-            self?.objectWillChange.send()
         }
     }
     
     func restart(project: Project) {
         stop(projectId: project.id)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
             self?.start(project: project)
         }
     }
     
     func killConflictingPortAndStart(project: Project) {
         if let port = project.port {
+            appendLog(projectId: project.id, text: "[Killing process on port \(port)]\n")
             PortChecker.killPort(port)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
             self?.start(project: project)
         }
     }
@@ -97,5 +107,12 @@ class ProcessManager: ObservableObject {
               let decoded = try? JSONDecoder().decode([Project].self, from: data)
         else { return }
         projects = decoded
+    }
+    
+    private func appendLog(projectId: UUID, text: String) {
+        let current = logs[projectId] ?? ""
+        let combined = current + text
+        // Keep last ~10k chars so memory doesn't grow forever
+        logs[projectId] = String(combined.suffix(10000))
     }
 }
