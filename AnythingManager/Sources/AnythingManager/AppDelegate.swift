@@ -27,7 +27,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func bindIconState() {
         manager.objectWillChange
-            .sink { [weak self] in
+            .sink { [weak self] _ in
                 guard let self = self else { return }
                 Task { @MainActor in
                     let active = self.manager.projects.contains { self.manager.isActive(projectId: $0.id) }
@@ -38,9 +38,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func updateIcon(isActive: Bool) {
-        let symbol = isActive ? "bolt.circle.fill" : "bolt.circle"
-        let color = isActive ? NSColor.systemGreen : NSColor.secondaryLabelColor
-        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+        // Use high-contrast colors that remain visible in both dark and light menu bars.
+        // systemGreen and labelColor adapt automatically to the current appearance.
+        let symbol = isActive ? "bolt.fill" : "bolt"
+        let color: NSColor = isActive ? .systemGreen : .labelColor
+        let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
             .applying(.init(paletteColors: [color]))
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "AnythingManager")?
             .withSymbolConfiguration(config)
