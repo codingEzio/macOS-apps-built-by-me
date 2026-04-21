@@ -19,6 +19,8 @@ struct ContentView: View {
             }
         }
         .frame(width: 380, height: 440)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
     
     var mainView: some View {
@@ -38,16 +40,16 @@ struct ContentView: View {
     }
     
     var header: some View {
-        HStack {
-            Image(systemName: "bolt.circle.fill")
-                .font(.title2)
+        HStack(spacing: 8) {
+            Image(systemName: "antenna.radiowaves.left.and.right")
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.accentColor)
             Text("Anything Manager")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
     }
     
     var projectsScreen: some View {
@@ -95,8 +97,12 @@ struct ContentView: View {
     
     @ViewBuilder
     var portStatusBanner: some View {
+        // Only show ports occupied by EXTERNAL processes — skip our own running projects
         let occupiedProjects = manager.projects.compactMap { project -> (Project, [PortProcessInfo])? in
-            guard let port = project.port else { return nil }
+            guard let port = project.port,
+                  !manager.isActive(projectId: project.id),
+                  !manager.isStarting(projectId: project.id)
+            else { return nil }
             let occupants = PortChecker.processesOnPort(port)
             return occupants.isEmpty ? nil : (project, occupants)
         }
@@ -106,7 +112,8 @@ struct ContentView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
-                    Text("Port occupied")
+                        .font(.caption)
+                    Text("Port occupied by external process")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.orange)
@@ -131,11 +138,11 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(10)
-            .background(Color.orange.opacity(0.1))
+            .padding(8)
+            .background(Color.orange.opacity(0.08))
             .cornerRadius(8)
             .padding(.horizontal, 14)
-            .padding(.bottom, 6)
+            .padding(.bottom, 4)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

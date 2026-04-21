@@ -247,6 +247,10 @@ class ProcessManager: ObservableObject {
         isRunning(projectId: projectId) || externalRunning.contains(projectId)
     }
     
+    func isStarting(projectId: UUID) -> Bool {
+        startingProjects.contains(projectId)
+    }
+    
     func start(project: Project) {
         guard processes[project.id] == nil || !processes[project.id]!.isRunning else {
             appendLog(projectId: project.id, text: "[Already running]\n")

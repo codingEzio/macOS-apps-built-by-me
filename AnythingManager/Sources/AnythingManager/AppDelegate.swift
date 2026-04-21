@@ -36,11 +36,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func updateIcon(isActive: Bool) {
-        // Use high-contrast colors that remain visible in both dark and light menu bars.
-        // systemGreen and labelColor adapt automatically to the current appearance.
-        let symbol = isActive ? "bolt.fill" : "bolt"
-        let color: NSColor = isActive ? .systemGreen : .labelColor
-        let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+        let symbol = isActive ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right"
+        let color: NSColor = isActive ? .systemGreen : .secondaryLabelColor
+        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
             .applying(.init(paletteColors: [color]))
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "AnythingManager")?
             .withSymbolConfiguration(config)
@@ -54,7 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 440),
-            styleMask: [.nonactivatingPanel, .titled, .closable],
+            styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )
@@ -62,11 +60,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isFloatingPanel = true
         panel.level = .popUpMenu
         panel.collectionBehavior = [.moveToActiveSpace, .transient]
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
+        panel.hasShadow = true
+        panel.backgroundColor = .clear
     }
     
     @objc private func togglePanel() {
