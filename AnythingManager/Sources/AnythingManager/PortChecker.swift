@@ -1,10 +1,12 @@
 import Foundation
 
 struct PortChecker {
+    /// Checks whether anything is listening on the given port.
+    /// Uses lsof with the -sTCP:LISTEN flag to avoid matching outgoing connections.
     static func isPortInUse(_ port: Int) -> Bool {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        task.arguments = ["-ti:\(port)"]
+        task.arguments = ["-P", "-i", ":\(port)", "-sTCP:LISTEN"]
         let pipe = Pipe()
         task.standardOutput = pipe
         do {
@@ -20,7 +22,7 @@ struct PortChecker {
     static func pidsUsingPort(_ port: Int) -> [String] {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        task.arguments = ["-ti:\(port)"]
+        task.arguments = ["-ti", ":\(port)"]
         let pipe = Pipe()
         task.standardOutput = pipe
         do {
@@ -43,13 +45,11 @@ struct PortChecker {
         }
     }
     
-    /// Polls the port until it is free or the timeout expires.
-    /// - Returns: `true` if the port became free within the timeout.
     static func waitForPortRelease(_ port: Int, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if !isPortInUse(port) { return true }
-            usleep(100_000) // 100 ms
+            usleep(100_000)
         }
         return !isPortInUse(port)
     }

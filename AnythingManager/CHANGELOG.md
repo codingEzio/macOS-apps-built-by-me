@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.0 — Immortal Process
+
+### Fixed
+- **Removed destructive health-check** — The previous auto-kill logic murdered dev servers that needed more than 5s to compile (e.g. `bun run dev`). Now the app **never kills a running process** during startup. It shows a "Starting" spinner, waits patiently, and logs status without violence.
+- **Reliable port detection** — Switched `lsof` to `lsof -P -i :PORT -sTCP:LISTEN` so it correctly detects listeners on both IPv4 and IPv6, avoiding false negatives that triggered the auto-kill.
+
+### Changed
+- **Startup UX** — Clicking Start now shows an animated **"Starting"** state with a spinner. The button is disabled during startup so you can't accidentally double-click.
+- **Log window auto-scroll** — The log view now automatically scrolls to the bottom as new output arrives, so you always see the latest lines.
+- **Card design** — Added subtle shadow and increased corner radius for a more modern, elevated look.
+- **Status badges** — Replaced plain text badges with icon+label combos (checkmark for Running, globe for External, etc.).
+- **Empty state** — When no projects exist, a friendly icon and centered message replaces the blank void.
+
+---
+
 ## v0.3.0 — Ghost Protocol
 
 ### Added

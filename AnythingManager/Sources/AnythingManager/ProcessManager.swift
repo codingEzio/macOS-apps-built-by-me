@@ -1,14 +1,15 @@
 import Foundation
 import Combine
 
-/// Manages running external projects (e.g. bun dev servers) as child processes.
 @MainActor
 class ProcessManager: ObservableObject {
     @Published var projects: [Project] = []
     @Published var logs: [UUID: String] = [:]
     @Published var errors: [UUID: String] = [:]
-    /// Projects whose configured port is occupied but are not tracked by this instance.
+    /// Projects whose port is occupied but not tracked by this instance.
     @Published var externalRunning: Set<UUID> = []
+    /// Projects currently in the process of starting up (shows spinner).
+    @Published var startingProjects: Set<UUID> = []
     
     private var processes: [UUID: Process] = [:]
     
@@ -21,15 +22,12 @@ class ProcessManager: ObservableObject {
         scanExternalProcesses()
     }
     
-    /// Checks configured ports to see if a project is already running
-    /// from a previous app instance or external launch.
     func scanExternalProcesses() {
         var detected: Set<UUID> = []
         for project in projects {
             guard let port = project.port else { continue }
             if PortChecker.isPortInUse(port) && processes[project.id] == nil {
                 detected.insert(project.id)
-                appendLog(projectId: project.id, text: "[Detected external process on port \(port)]\n")
             }
         }
         externalRunning = detected
@@ -40,7 +38,6 @@ class ProcessManager: ObservableObject {
         return process.isRunning
     }
     
-    /// True if the project is either tracked by us or detected externally.
     func isActive(projectId: UUID) -> Bool {
         isRunning(projectId: projectId) || externalRunning.contains(projectId)
     }
@@ -51,23 +48,23 @@ class ProcessManager: ObservableObject {
             return
         }
         
-        // Clear any stale error / external flag
         errors.removeValue(forKey: project.id)
         externalRunning.remove(project.id)
+        startingProjects.insert(project.id)
         
-        // If the port is occupied, take over automatically after it is freed.
+        // Preemptive port takeover
         if let port = project.port, PortChecker.isPortInUse(port) {
             appendLog(projectId: project.id, text: "[Port \(port) occupied — reclaiming]\n")
             PortChecker.killPort(port)
-            
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                let freed = PortChecker.waitForPortRelease(port, timeout: 3.0)
+                let freed = PortChecker.waitForPortRelease(port, timeout: 4.0)
                 DispatchQueue.main.async {
                     guard let self = self else { return }
                     if freed {
                         self.start(project: project)
                     } else {
-                        let msg = "Port \(port) is still occupied after kill. Try Force Start or kill it manually."
+                        self.startingProjects.remove(project.id)
+                        let msg = "Port \(port) still occupied after kill."
                         self.errors[project.id] = msg
                         self.appendLog(projectId: project.id, text: "[\(msg)]\n")
                     }
@@ -94,6 +91,7 @@ class ProcessManager: ObservableObject {
         
         process.terminationHandler = { [weak self] _ in
             Task { @MainActor [weak self] in
+                self?.startingProjects.remove(project.id)
                 self?.objectWillChange.send()
             }
         }
@@ -101,34 +99,38 @@ class ProcessManager: ObservableObject {
         do {
             try process.run()
             processes[project.id] = process
-            appendLog(projectId: project.id, text: "[Started]\n")
+            appendLog(projectId: project.id, text: "[Starting…]\n")
             objectWillChange.send()
-            
-            // Health check: verify the port actually becomes occupied after a few seconds.
-            // This prevents the UI from showing "Running" when bun fails to bind (e.g. EADDRINUSE).
-            scheduleHealthCheck(project: project, process: process)
+            watchStartup(project: project)
         } catch {
+            startingProjects.remove(project.id)
             let msg = "Start failed: \(error.localizedDescription)"
             errors[project.id] = msg
             appendLog(projectId: project.id, text: "[\(msg)]\n")
         }
     }
     
-    private func scheduleHealthCheck(project: Project, process: Process) {
-        guard let port = project.port else { return }
+    /// Watches the port after startup. Never kills the process — only logs status.
+    private func watchStartup(project: Project) {
+        guard let port = project.port else {
+            startingProjects.remove(project.id)
+            return
+        }
         
-        // First check at 2s, second at 5s. Many dev servers bind within 1-2s.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            guard let self = self, self.processes[project.id] === process else { return }
-            if !PortChecker.isPortInUse(port) {
-                // Port still free — likely a silent bind failure. Retry once after a longer delay.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                    guard let self = self, self.processes[project.id] === process else { return }
-                    if !PortChecker.isPortInUse(port) {
-                        let msg = "Port \(port) never came up. The command may have failed silently."
-                        self.errors[project.id] = msg
-                        self.appendLog(projectId: project.id, text: "[\(msg)]\n")
-                        self.stop(projectId: project.id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self = self, self.processes[project.id] != nil else { return }
+            if PortChecker.isPortInUse(port) {
+                self.appendLog(projectId: project.id, text: "[Port \(port) is listening]\n")
+                self.startingProjects.remove(project.id)
+            } else {
+                self.appendLog(projectId: project.id, text: "[Waiting for port \(port)...]\n")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+                    guard let self = self, self.processes[project.id] != nil else { return }
+                    if PortChecker.isPortInUse(port) {
+                        self.startingProjects.remove(project.id)
+                    } else {
+                        self.appendLog(projectId: project.id, text: "[Warning: port \(port) not listening after 5s, but process is still running]\n")
+                        self.startingProjects.remove(project.id)
                     }
                 }
             }
@@ -136,8 +138,8 @@ class ProcessManager: ObservableObject {
     }
     
     func stop(projectId: UUID) {
+        startingProjects.remove(projectId)
         guard let process = processes[projectId] else {
-            // If it is running externally, just clear the flag
             externalRunning.remove(projectId)
             objectWillChange.send()
             return
@@ -146,16 +148,11 @@ class ProcessManager: ObservableObject {
         appendLog(projectId: projectId, text: "[Stopping…]\n")
         errors.removeValue(forKey: projectId)
         externalRunning.remove(projectId)
-        
-        // Immediately remove from tracking so UI updates right away
         processes.removeValue(forKey: projectId)
         objectWillChange.send()
         
-        // Try graceful terminate first
         process.terminate()
-        
-        // If it's still there after a moment, force kill on a background queue
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.5) {
             if process.isRunning {
                 kill(process.processIdentifier, 9)
             }
@@ -164,7 +161,7 @@ class ProcessManager: ObservableObject {
     
     func restart(project: Project) {
         stop(projectId: project.id)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.start(project: project)
         }
     }
@@ -175,7 +172,7 @@ class ProcessManager: ObservableObject {
             PortChecker.killPort(port)
         }
         externalRunning.remove(project.id)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.start(project: project)
         }
     }
@@ -196,7 +193,6 @@ class ProcessManager: ObservableObject {
     private func appendLog(projectId: UUID, text: String) {
         let current = logs[projectId] ?? ""
         let combined = current + text
-        // Keep last ~10k chars so memory doesn't grow forever
         logs[projectId] = String(combined.suffix(10000))
     }
 }

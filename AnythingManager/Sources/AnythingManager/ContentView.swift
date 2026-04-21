@@ -46,13 +46,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             if manager.projects.isEmpty {
                 Spacer()
-                VStack(spacing: 8) {
-                    Text("No projects")
-                        .font(.headline)
-                    Text("Open Settings to add your first project.")
-                        .font(.callout)
-                        .foregroundColor(.secondary)
-                }
+                emptyState
                 Spacer()
             } else {
                 ScrollView {
@@ -87,6 +81,22 @@ struct ContentView: View {
             LogView(manager: manager, project: project)
         }
     }
+    
+    var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "square.stack.3d.up.slash")
+                .font(.system(size: 32))
+                .foregroundColor(.secondary)
+            Text("No projects yet")
+                .font(.headline)
+            Text("Open Settings to add your first one.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+    }
 }
 
 struct ProjectRow: View {
@@ -100,6 +110,10 @@ struct ProjectRow: View {
     
     var isExternal: Bool {
         manager.externalRunning.contains(project.id)
+    }
+    
+    var isStarting: Bool {
+        manager.startingProjects.contains(project.id)
     }
     
     var isActive: Bool {
@@ -121,7 +135,13 @@ struct ProjectRow: View {
                 
                 Spacer()
                 
-                if isRunning {
+                if isStarting {
+                    Button(action: {}) {
+                        Label("Starting", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(true)
+                } else if isRunning {
                     Button("Restart") {
                         manager.restart(project: project)
                     }
@@ -152,14 +172,25 @@ struct ProjectRow: View {
             }
             
             HStack(spacing: 6) {
-                if isRunning {
-                    Text("Running")
+                if isStarting {
+                    Label("Starting", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption2)
+                        .foregroundColor(.accentColor)
+                        .statusTag(color: .accentColor)
+                } else if isRunning {
+                    Label("Running", systemImage: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.green)
                         .statusTag(color: .green)
                 } else if isExternal {
-                    Text("Running (external)")
+                    Label("External", systemImage: "globe")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
                         .statusTag(color: .orange)
                 } else {
-                    Text("Stopped")
+                    Label("Stopped", systemImage: "stop.circle")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                         .statusTag(color: .secondary, bgOpacity: 0.12)
                 }
                 
@@ -167,7 +198,7 @@ struct ProjectRow: View {
                     Text(":\(port)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    if PortChecker.isPortInUse(port) && !isActive {
+                    if PortChecker.isPortInUse(port) && !isActive && !isStarting {
                         Text("occupied")
                             .font(.caption2)
                             .foregroundColor(.orange)
@@ -185,13 +216,13 @@ struct ProjectRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             
-            if !isActive && !hasLogs {
+            if !isActive && !isStarting && !hasLogs {
                 Text("Click Start to run \(project.command)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             
-            if isActive {
+            if isActive || isStarting {
                 Button("Show Logs") {
                     onShowLogs()
                 }
@@ -199,13 +230,20 @@ struct ProjectRow: View {
             }
         }
         .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        )
     }
     
     @ViewBuilder
     var statusIndicator: some View {
-        if isRunning {
+        if isStarting {
+            ProgressView()
+                .scaleEffect(0.6)
+                .frame(width: 12, height: 12)
+        } else if isRunning {
             Image(systemName: "bolt.circle.fill")
                 .foregroundColor(.green)
                 .font(.system(size: 12))
@@ -221,7 +259,7 @@ struct ProjectRow: View {
     }
 }
 
-extension Text {
+extension View {
     func statusTag(color: Color, bgOpacity: Double = 0.15) -> some View {
         self
             .font(.caption2)
@@ -248,15 +286,30 @@ struct LogView: View {
                 Button("Close") { dismiss() }
             }
             
-            ScrollView {
-                Text(manager.logs[project.id]?.isEmpty == false ? manager.logs[project.id]! : "No logs yet…")
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(logText)
+                        .font(.system(size: 11, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .id("logBottom")
+                }
+                .background(Color.black.opacity(0.05))
+                .cornerRadius(6)
+                .onChange(of: manager.logs[project.id]) { _ in
+                    withAnimation {
+                        proxy.scrollTo("logBottom", anchor: .bottom)
+                    }
+                }
             }
-            .background(Color.black.opacity(0.05))
-            .cornerRadius(6)
         }
         .padding()
         .frame(width: 640, height: 420)
+    }
+    
+    var logText: String {
+        if let text = manager.logs[project.id], !text.isEmpty {
+            return text
+        }
+        return "No logs yet…"
     }
 }
