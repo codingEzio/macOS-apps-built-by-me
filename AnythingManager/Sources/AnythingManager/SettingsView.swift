@@ -10,98 +10,11 @@ struct SettingsView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Settings")
-                    .font(.headline)
-                Spacer()
-                Button("Back") {
-                    onBack()
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 4)
-            
+            header
             Divider().padding(.vertical, 10)
-            
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Toggle("Launch at login", isOn: $launchAtLogin)
-                        .onAppear { launchAtLogin = LaunchAtLogin.isEnabled() }
-                        .onChange(of: launchAtLogin) { newValue in
-                            LaunchAtLogin.setEnabled(newValue)
-                        }
-                    
-                    if let error = LaunchAtLogin.lastError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-                    
-                    Text("Projects")
-                        .font(.subheadline)
-                    
-                    VStack(spacing: 12) {
-                        ForEach($manager.projects) { $project in
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    TextField("Name", text: $project.name)
-                                        .textFieldStyle(.roundedBorder)
-                                    TextField("Port", text: portBinding(for: $project))
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 80)
-                                }
-                                TextField("Path", text: $project.path)
-                                    .textFieldStyle(.roundedBorder)
-                                TextField("Command", text: $project.command)
-                                    .textFieldStyle(.roundedBorder)
-                                
-                                Button("Delete", role: .destructive) {
-                                    projectToDelete = project
-                                    showDeleteConfirm = true
-                                }
-                                .font(.caption)
-                                .controlSize(.small)
-                            }
-                            .padding(10)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(8)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-            
+            settingsScroll
             Divider().padding(.vertical, 10)
-            
-            HStack {
-                Button("Add Project") {
-                    manager.projects.append(
-                        Project(id: UUID(), name: "new-project", path: "", command: "bun run dev", port: nil)
-                    )
-                    manager.saveProjects()
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 8) {
-                    if savedToast {
-                        Text("Saved")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                            .transition(.opacity)
-                    }
-                    Button("Save") {
-                        manager.saveProjects()
-                        withAnimation { savedToast = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation { savedToast = false }
-                        }
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
+            footer
         }
         .alert("Delete project?", isPresented: $showDeleteConfirm, presenting: projectToDelete) { project in
             Button("Delete", role: .destructive) {
@@ -114,10 +27,156 @@ struct SettingsView: View {
         }
     }
     
-    private func portBinding(for project: Binding<Project>) -> Binding<String> {
+    var header: some View {
+        HStack {
+            Text("Settings")
+                .font(.headline)
+            Spacer()
+            Button("Back") {
+                onBack()
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+    }
+    
+    var settingsScroll: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onAppear { launchAtLogin = LaunchAtLogin.isEnabled() }
+                    .onChange(of: launchAtLogin) { newValue in
+                        LaunchAtLogin.setEnabled(newValue)
+                    }
+                
+                if let error = LaunchAtLogin.lastError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                
+                HStack {
+                    Text("Projects")
+                        .font(.subheadline)
+                    Spacer()
+                    Button(action: {
+                        let url = ProcessManager.configFileURL
+                        NSWorkspace.shared.open(url.deletingLastPathComponent())
+                    }) {
+                        Image(systemName: "folder")
+                        Text("Open config folder")
+                    }
+                    .font(.caption)
+                    .controlSize(.small)
+                    .help(ProcessManager.configFileURL.path)
+                }
+                
+                Text("Edit \(ProcessManager.configFileURL.lastPathComponent) directly to batch-configure projects.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                
+                VStack(spacing: 12) {
+                    ForEach($manager.projects) { $project in
+                        ProjectEditorCard(
+                            project: $project,
+                            onDelete: {
+                                projectToDelete = project
+                                showDeleteConfirm = true
+                            }
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+    
+    var footer: some View {
+        HStack {
+            Button("Add Project") {
+                manager.projects.append(
+                    Project(id: UUID(), name: "new-project", path: "", command: "bun run dev", port: nil)
+                )
+                manager.saveProjects()
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                if savedToast {
+                    Text("Saved")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                        .transition(.opacity)
+                }
+                Button("Save") {
+                    manager.saveProjects()
+                    withAnimation { savedToast = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        withAnimation { savedToast = false }
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
+    }
+}
+
+struct ProjectEditorCard: View {
+    @Binding var project: Project
+    let onDelete: () -> Void
+    
+    var body: some View {
+        let errors = project.validate()
+        
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                TextField("Name", text: $project.name)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Port", text: portBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 80)
+            }
+            TextField("Path", text: $project.path)
+                .textFieldStyle(.roundedBorder)
+            TextField("Command", text: $project.command)
+                .textFieldStyle(.roundedBorder)
+            
+            if !errors.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(errors, id: \.self) { err in
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                            Text(err)
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+                .padding(.top, 2)
+            }
+            
+            Button("Delete", role: .destructive, action: onDelete)
+                .font(.caption)
+                .controlSize(.small)
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(errors.isEmpty ? Color.clear : Color.red.opacity(0.4), lineWidth: 1)
+        )
+    }
+    
+    private var portBinding: Binding<String> {
         Binding<String>(
-            get: { project.wrappedValue.port.map { String($0) } ?? "" },
-            set: { project.wrappedValue.port = Int($0) }
+            get: { project.port.map { String($0) } ?? "" },
+            set: { project.port = Int($0) }
         )
     }
 }

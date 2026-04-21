@@ -66,12 +66,15 @@ print("PASS: PortChecker logic OK")
 # 5. Launch test (start and kill quickly to verify it does not crash immediately)
 open "$APP"
 sleep 2
-PID=$(pgrep -f "AnythingManager" || true)
+PID=$(pgrep -f "Applications/AnythingManager.app" || true)
 if [ -z "$PID" ]; then
     echo "FAIL: app did not start"
     exit 1
 fi
-kill "$PID" || true
+# pgrep may return multiple lines; kill each PID individually
+echo "$PID" | while read -r p; do
+    kill "$p" 2>/dev/null || true
+done
 echo "PASS: App launches without crashing"
 
 echo ""

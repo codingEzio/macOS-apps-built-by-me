@@ -12,6 +12,13 @@ class ProcessManager: ObservableObject {
     private var processes: [UUID: Process] = [:]
     private var scanTimer: Timer?
     
+    /// Path to the JSON config file on disk.
+    static var configFileURL: URL {
+        let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appDir = supportDir.appendingPathComponent("AnythingManager", isDirectory: true)
+        return appDir.appendingPathComponent("projects.json")
+    }
+    
     init() {
         loadProjects()
         if projects.isEmpty {
@@ -61,14 +68,15 @@ class ProcessManager: ObservableObject {
             return
         }
         
-        // Validate path exists
-        let expandedPath = NSString(string: project.path).expandingTildeInPath
-        if !FileManager.default.fileExists(atPath: expandedPath) {
-            let msg = "Path does not exist: \(project.path)"
+        let validationErrors = project.validate()
+        if !validationErrors.isEmpty {
+            let msg = validationErrors.joined(separator: "; ")
             errors[project.id] = msg
-            appendLog(projectId: project.id, text: "[\(msg)]\n")
+            appendLog(projectId: project.id, text: "[Invalid config: \(msg)]\n")
             return
         }
+        
+        let expandedPath = NSString(string: project.path).expandingTildeInPath
         
         errors.removeValue(forKey: project.id)
         externalRunning.remove(project.id)
@@ -211,17 +219,40 @@ class ProcessManager: ObservableObject {
         }
     }
     
+    // MARK: - Config file persistence
+    
     func saveProjects() {
-        if let data = try? JSONEncoder().encode(projects) {
-            UserDefaults.standard.set(data, forKey: "anything_manager_projects")
+        let url = Self.configFileURL
+        do {
+            let data = try JSONEncoder().encode(projects)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url)
+        } catch {
+            print("[AnythingManager] Failed to save projects: \(error)")
         }
     }
     
     private func loadProjects() {
-        guard let data = UserDefaults.standard.data(forKey: "anything_manager_projects"),
-              let decoded = try? JSONDecoder().decode([Project].self, from: data)
-        else { return }
-        projects = decoded
+        let url = Self.configFileURL
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            // Fall back to UserDefaults for backward compatibility
+            if let data = UserDefaults.standard.data(forKey: "anything_manager_projects"),
+               let decoded = try? JSONDecoder().decode([Project].self, from: data) {
+                projects = decoded
+                // Migrate to file
+                saveProjects()
+                UserDefaults.standard.removeObject(forKey: "anything_manager_projects")
+            }
+            return
+        }
+        
+        do {
+            let data = try Data(contentsOf: url)
+            projects = try JSONDecoder().decode([Project].self, from: data)
+        } catch {
+            print("[AnythingManager] Failed to load projects: \(error)")
+            projects = []
+        }
     }
     
     private func appendLog(projectId: UUID, text: String) {
