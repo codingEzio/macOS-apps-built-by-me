@@ -29,6 +29,7 @@ class ProcessManager: ObservableObject {
             guard let port = project.port else { continue }
             if PortChecker.isPortInUse(port) && processes[project.id] == nil {
                 detected.insert(project.id)
+                appendLog(projectId: project.id, text: "[Detected external process on port \(port)]\n")
             }
         }
         externalRunning = detected
@@ -53,6 +54,16 @@ class ProcessManager: ObservableObject {
         // Clear any stale error / external flag
         errors.removeValue(forKey: project.id)
         externalRunning.remove(project.id)
+        
+        // If the port is occupied by someone else, take over automatically
+        if let port = project.port, PortChecker.isPortInUse(port) {
+            appendLog(projectId: project.id, text: "[Port \(port) occupied — taking over]\n")
+            PortChecker.killPort(port)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                self?.start(project: project)
+            }
+            return
+        }
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
