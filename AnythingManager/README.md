@@ -8,7 +8,8 @@ A dead-simple macOS menu-bar app to start, stop, and monitor local dev projects 
 - **Start / Stop / Restart** any project with one click.
 - Shows a **Running / Stopped** badge so you always know the state.
 - **Port conflict detection** — if another process is using the project's port, you can force-start to kill the occupant and take over.
-- **Launch at login** — enable in Settings and the app (plus your projects, if you configure it) starts automatically.
+- **Survives app restarts** — if you rebuild and relaunch the menu-bar app, it detects projects that are still running from the previous instance and offers a **"Take Over"** button to reclaim them without dropping traffic.
+- **Launch at login** — enable in Settings and the app starts automatically.
 - **Per-project logs** — view the last 10K characters of output in a built-in log window.
 
 ## Requirements
@@ -18,11 +19,20 @@ A dead-simple macOS menu-bar app to start, stop, and monitor local dev projects 
 
 ## Build & Run
 
+### First time
 ```bash
 cd AnythingManager
 ./build-app.sh
 open ../Applications/AnythingManager.app
 ```
+
+### Rebuild while developing
+```bash
+cd AnythingManager
+./restart-app.sh
+```
+
+`restart-app.sh` builds a fresh `.app`, kills the old menu-bar instance, and launches the new one. Any dev servers you started through the old app **keep running** because they are independent OS processes; the new app detects them and shows a **"Take Over"** button so you can reclaim control instantly.
 
 The `.app` is placed in `../Applications/` so all your menu-bar apps live in one predictable place.
 
@@ -52,6 +62,9 @@ The `.app` is placed in `../Applications/` so all your menu-bar apps live in one
 **Start button shows an error**
 - Verify the **Path** exists on disk.
 - Verify the **Command** works when you run it manually in a shell (`zsh -l -c "cd <path> && <command>"`).
+
+**"Take Over" is shown but I didn't restart the app**
+- Another app or terminal window is using that port. Click **Take Over** (or **Force Start**) to replace it.
 
 ## Notes
 
