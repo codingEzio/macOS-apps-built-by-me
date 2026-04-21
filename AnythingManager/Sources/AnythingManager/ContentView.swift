@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var manager = ProcessManager()
+    @ObservedObject var manager: ProcessManager
     @State private var screen: Screen = .projects
     @State private var logProject: Project? = nil
     
@@ -31,7 +31,7 @@ struct ContentView: View {
     
     var header: some View {
         HStack {
-            Image(systemName: "command.square.fill")
+            Image(systemName: "bolt.circle.fill")
                 .font(.title2)
                 .foregroundColor(.accentColor)
             Text("Anything Manager")
@@ -106,13 +106,15 @@ struct ProjectRow: View {
         isRunning || isExternal
     }
     
+    var hasLogs: Bool {
+        manager.logs[project.id]?.isEmpty == false
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 HStack(spacing: 6) {
-                    Circle()
-                        .fill(isActive ? Color.green : Color.red)
-                        .frame(width: 10, height: 10)
+                    statusIndicator
                     Text(project.name)
                         .font(.system(size: 14, weight: .semibold))
                 }
@@ -183,6 +185,12 @@ struct ProjectRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             
+            if !isActive && !hasLogs {
+                Text("Click Start to run \(project.command)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
             if isActive {
                 Button("Show Logs") {
                     onShowLogs()
@@ -193,6 +201,23 @@ struct ProjectRow: View {
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(10)
+    }
+    
+    @ViewBuilder
+    var statusIndicator: some View {
+        if isRunning {
+            Image(systemName: "bolt.circle.fill")
+                .foregroundColor(.green)
+                .font(.system(size: 12))
+        } else if isExternal {
+            Image(systemName: "bolt.circle.fill")
+                .foregroundColor(.orange)
+                .font(.system(size: 12))
+        } else {
+            Image(systemName: "bolt.circle")
+                .foregroundColor(.secondary)
+                .font(.system(size: 12))
+        }
     }
 }
 

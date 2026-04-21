@@ -1,31 +1,54 @@
 import AppKit
 import SwiftUI
+import Combine
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var panel: NSPanel!
-    var contentView: ContentView!
+    let manager = ProcessManager()
+    private var cancellables = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         
         setupStatusItem()
         setupPanel()
+        bindIconState()
     }
     
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "command.square.fill",
-            accessibilityDescription: "AnythingManager"
-        )
         statusItem.button?.action = #selector(togglePanel)
         statusItem.button?.target = self
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        updateIcon(isActive: false)
+    }
+    
+    private func bindIconState() {
+        manager.objectWillChange
+            .sink { [weak self] in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    let active = self.manager.projects.contains { self.manager.isActive(projectId: $0.id) }
+                    self.updateIcon(isActive: active)
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func updateIcon(isActive: Bool) {
+        let symbol = isActive ? "bolt.circle.fill" : "bolt.circle"
+        let color = isActive ? NSColor.systemGreen : NSColor.secondaryLabelColor
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            .applying(.init(paletteColors: [color]))
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "AnythingManager")?
+            .withSymbolConfiguration(config)
+        statusItem.button?.image = image
     }
     
     private func setupPanel() {
-        contentView = ContentView()
+        let contentView = ContentView(manager: manager)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 420)
         
