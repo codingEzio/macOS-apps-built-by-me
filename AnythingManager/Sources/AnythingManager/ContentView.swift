@@ -19,11 +19,14 @@ struct ContentView: View {
             switch screen {
             case .projects:
                 projectsScreen
+                    .transition(.opacity)
             case .settings:
-                SettingsView(manager: manager, onBack: { screen = .projects })
+                SettingsView(manager: manager, onBack: { withAnimation { screen = .projects } })
+                    .transition(.opacity)
             }
         }
         .frame(width: 380, height: 420)
+        .animation(.easeInOut(duration: 0.15), value: screen)
     }
     
     var header: some View {
@@ -70,7 +73,7 @@ struct ContentView: View {
             
             HStack {
                 Button("Settings") {
-                    screen = .settings
+                    withAnimation { screen = .settings }
                 }
                 Spacer()
                 Button("Quit") {
@@ -155,6 +158,14 @@ struct ProjectRow: View {
                 }
                 
                 Spacer()
+            }
+            
+            if let error = manager.errors[project.id] {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
             if isRunning {
