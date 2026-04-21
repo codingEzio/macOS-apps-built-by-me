@@ -5,10 +5,13 @@
 ### Added
 - **Smart port takeover** — Clicking **Start** on a project whose port is occupied automatically kills the old occupant and launches a fresh tracked process. No more manual "Force Start" hunting.
 - **External process detection** — On launch the app scans configured ports. If a project is already running from a previous app instance (or a stray terminal session), it shows an orange **"Running (external)"** badge and a **"Take Over"** button.
+- **Menu-bar icon state** — The bolt icon glows **green** while projects are running and turns **gray** when everything is stopped, so you can tell the state at a glance without opening the panel.
+- **Onboarding hints** — Stopped projects with no logs show a gentle "Click Start to run …" caption so first-time users know what to do.
 - `restart-app.sh` — One-command rebuild-and-relaunch. Builds a fresh `.app`, kills the old menu-bar instance, and opens the new one. Dev servers keep running because they are independent OS processes.
 
 ### Fixed
 - `LaunchAtLogin` now derives the `.app` path dynamically via `Bundle.main.bundlePath` instead of hard-coding `/path/to/repo`.
+- Default project port changed from `nil` to `3000` so port scanning and takeover work out of the box for typical dev servers.
 
 ---
 
