@@ -42,4 +42,15 @@ struct PortChecker {
             try? task.run()
         }
     }
+    
+    /// Polls the port until it is free or the timeout expires.
+    /// - Returns: `true` if the port became free within the timeout.
+    static func waitForPortRelease(_ port: Int, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !isPortInUse(port) { return true }
+            usleep(100_000) // 100 ms
+        }
+        return !isPortInUse(port)
+    }
 }

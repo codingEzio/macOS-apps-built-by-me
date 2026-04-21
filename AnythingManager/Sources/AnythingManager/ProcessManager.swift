@@ -55,12 +55,23 @@ class ProcessManager: ObservableObject {
         errors.removeValue(forKey: project.id)
         externalRunning.remove(project.id)
         
-        // If the port is occupied by someone else, take over automatically
+        // If the port is occupied, take over automatically after it is freed.
         if let port = project.port, PortChecker.isPortInUse(port) {
-            appendLog(projectId: project.id, text: "[Port \(port) occupied — taking over]\n")
+            appendLog(projectId: project.id, text: "[Port \(port) occupied — reclaiming]\n")
             PortChecker.killPort(port)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                self?.start(project: project)
+            
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let freed = PortChecker.waitForPortRelease(port, timeout: 3.0)
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    if freed {
+                        self.start(project: project)
+                    } else {
+                        let msg = "Port \(port) is still occupied after kill. Try Force Start or kill it manually."
+                        self.errors[project.id] = msg
+                        self.appendLog(projectId: project.id, text: "[\(msg)]\n")
+                    }
+                }
             }
             return
         }
@@ -92,10 +103,35 @@ class ProcessManager: ObservableObject {
             processes[project.id] = process
             appendLog(projectId: project.id, text: "[Started]\n")
             objectWillChange.send()
+            
+            // Health check: verify the port actually becomes occupied after a few seconds.
+            // This prevents the UI from showing "Running" when bun fails to bind (e.g. EADDRINUSE).
+            scheduleHealthCheck(project: project, process: process)
         } catch {
             let msg = "Start failed: \(error.localizedDescription)"
             errors[project.id] = msg
             appendLog(projectId: project.id, text: "[\(msg)]\n")
+        }
+    }
+    
+    private func scheduleHealthCheck(project: Project, process: Process) {
+        guard let port = project.port else { return }
+        
+        // First check at 2s, second at 5s. Many dev servers bind within 1-2s.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self, self.processes[project.id] === process else { return }
+            if !PortChecker.isPortInUse(port) {
+                // Port still free — likely a silent bind failure. Retry once after a longer delay.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    guard let self = self, self.processes[project.id] === process else { return }
+                    if !PortChecker.isPortInUse(port) {
+                        let msg = "Port \(port) never came up. The command may have failed silently."
+                        self.errors[project.id] = msg
+                        self.appendLog(projectId: project.id, text: "[\(msg)]\n")
+                        self.stop(projectId: project.id)
+                    }
+                }
+            }
         }
     }
     
