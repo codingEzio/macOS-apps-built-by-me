@@ -13,7 +13,7 @@ struct Project: Identifiable, Codable, Equatable {
             name: "anything",
             path: NSString(string: "/path/to/project").expandingTildeInPath,
             command: "bun run dev",
-            port: nil
+            port: 3000
         )
     }
 }
