@@ -15,9 +15,28 @@ class ProcessManager: ObservableObject {
     private var scanTimer: Timer?
     
     init() {
-        if let url = Self.resolveConfigURL() {
-            configURL = url
+        configURL = Self.resolveConfigURL()
+        
+        if let url = configURL, FileManager.default.fileExists(atPath: url.path) {
             loadProjects()
+        } else if let url = configURL {
+            // File does not exist yet — try one-time migration from UserDefaults,
+            // then fall back to sample or placeholder.
+            if migrateFromUserDefaults(to: url) {
+                // migrated
+            } else if let sampleURL = Self.resolveSampleConfigURL() {
+                do {
+                    let data = try Data(contentsOf: sampleURL)
+                    try data.write(to: url)
+                    loadProjects()
+                } catch {
+                    projects = [Project.placeholder()]
+                    saveProjects()
+                }
+            } else {
+                projects = [Project.placeholder()]
+                saveProjects()
+            }
         } else {
             configMissing = true
         }
@@ -29,6 +48,51 @@ class ProcessManager: ObservableObject {
         
         scanExternalProcesses()
         startPeriodicScan()
+    }
+    
+    /// One-time migration from the old UserDefaults storage to the new file-based config.
+    /// Reads the bundled-app plist directly so migration works regardless of how the
+    /// binary is launched (swift run vs .app bundle).
+    private func migrateFromUserDefaults(to url: URL) -> Bool {
+        let plistPath = NSString(string: "~/Library/Preferences/com.user.AnythingManager.plist")
+            .expandingTildeInPath
+        
+        var data: Data?
+        
+        // 1. Try the bundled-app plist directly
+        if let plist = NSDictionary(contentsOfFile: plistPath),
+           let raw = plist["anything_manager_projects"] {
+            if let d = raw as? Data {
+                data = d
+            } else if let s = raw as? String {
+                data = s.data(using: .utf8)
+            }
+        }
+        
+        // 2. Fallback to UserDefaults.standard (for swift-run scenarios)
+        if data == nil {
+            data = UserDefaults.standard.data(forKey: "anything_manager_projects")
+        }
+        
+        guard let payload = data else { return false }
+        
+        guard let decoded = try? JSONDecoder().decode([Project].self, from: payload) else {
+            // Corrupt data — clean up both locations
+            UserDefaults.standard.removeObject(forKey: "anything_manager_projects")
+            try? FileManager.default.removeItem(atPath: plistPath)
+            return false
+        }
+        
+        do {
+            let out = try JSONEncoder().encode(decoded)
+            try out.write(to: url)
+            projects = decoded
+            UserDefaults.standard.removeObject(forKey: "anything_manager_projects")
+            try? FileManager.default.removeItem(atPath: plistPath)
+            return true
+        } catch {
+            return false
+        }
     }
     
     /// Binds the manager to a user-selected config file and loads it.
@@ -59,14 +123,16 @@ class ProcessManager: ObservableObject {
     /// 2. Inside the app bundle's Resources
     /// 3. Sibling of the .app bundle
     static func resolveConfigURL() -> URL? {
-        // 1. Dev mode: relative to this source file
+        // 1. Dev mode: relative to this source file (always returns a path even if
+        //    the file does not exist yet, so the app can create it).
         let sourceFile = URL(fileURLWithPath: #file)
         let devConfig = sourceFile
             .deletingLastPathComponent() // AnythingManager/
             .deletingLastPathComponent() // Sources/
             .deletingLastPathComponent() // AnythingManager/
             .appendingPathComponent("config.json")
-        if FileManager.default.fileExists(atPath: devConfig.path) {
+        // If the source repo is present, use it.
+        if FileManager.default.fileExists(atPath: devConfig.deletingLastPathComponent().path) {
             return devConfig
         }
         
@@ -80,9 +146,7 @@ class ProcessManager: ObservableObject {
             let sibling = URL(fileURLWithPath: Bundle.main.bundlePath)
                 .deletingLastPathComponent()
                 .appendingPathComponent("config.json")
-            if FileManager.default.fileExists(atPath: sibling.path) {
-                return sibling
-            }
+            return sibling
         }
         
         return nil

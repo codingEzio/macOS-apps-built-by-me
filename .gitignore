@@ -1,10 +1,23 @@
 .DS_Store
 AnythingManager/.build/
 Applications/
-*.webp
 
 # Local-only configs (sample files are tracked)
 */config.json
 
 # Local-only development spec (AGENTS.sample.md is the public version)
 AGENTS.md
+
+# Media whitelist: ignore ALL images/videos by default.
+# Use !pattern to explicitly allow specific files that should be tracked.
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.bmp
+*.tiff
+*.mp4
+*.mov
+*.avi
+*.mkv
