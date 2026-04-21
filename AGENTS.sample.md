@@ -33,3 +33,20 @@ repo-root/
 3. `build-app.sh` and `restart-app.sh` scripts.
 4. Config resolution relative to binary or via user selection.
 5. Zero hardcoded personal values in source.
+
+## Task Tracking vs Release Notes
+
+### TODO.md (local-only, ignored)
+- Tracks development tasks, subtasks, and progress before a feature ships.
+- Audience: you and your local AI agents.
+- Must never contain paths, ports, passwords, or personal identifiers.
+
+### CHANGELOG.md (tracked, public)
+- Summarizes shipped features and fixes for external readers.
+- Must be fully de-sensitized: no personal paths, no machine-specific values.
+- Updated only when a feature or fix is fully done and tested.
+
+### Responsibility Split
+- TODO holds the **process**; CHANGELOG holds the **outcome**.
+- A TODO item must be checked off before its CHANGELOG entry is written.
+- If a CHANGELOG entry would expose sensitive info, rephrase it generically or omit it.
