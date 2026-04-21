@@ -2,63 +2,32 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var manager = ProcessManager()
-    @State private var showingSettings = false
-    @State private var showingLogs: Project? = nil
+    @State private var screen: Screen = .projects
+    @State private var logProject: Project? = nil
+    
+    enum Screen {
+        case projects
+        case settings
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             header
             
-            Divider()
-                .padding(.vertical, 10)
+            Divider().padding(.vertical, 10)
             
-            if manager.projects.isEmpty {
-                Text("No projects yet.\nOpen Settings to add one.")
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, minHeight: 120)
-            } else {
-                ScrollView {
-                    VStack(spacing: 14) {
-                        ForEach(manager.projects) { project in
-                            ProjectCard(
-                                project: project,
-                                manager: manager,
-                                showingLogs: $showingLogs
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                }
-                .frame(maxHeight: 380)
+            switch screen {
+            case .projects:
+                projectsScreen
+            case .settings:
+                SettingsView(manager: manager, onBack: { screen = .projects })
             }
-            
-            Divider()
-                .padding(.vertical, 10)
-            
-            HStack {
-                Button("Settings…") {
-                    showingSettings = true
-                }
-                .sheet(isPresented: $showingSettings) {
-                    SettingsView(manager: manager)
-                }
-                
-                Spacer()
-                
-                Button("Quit") {
-                    NSApplication.shared.terminate(nil)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
         }
-        .padding(.top, 14)
+        .frame(width: 380, height: 420)
     }
     
     var header: some View {
-        HStack(spacing: 8) {
+        HStack {
             Image(systemName: "command.square.fill")
                 .font(.title2)
                 .foregroundColor(.accentColor)
@@ -67,13 +36,60 @@ struct ContentView: View {
             Spacer()
         }
         .padding(.horizontal, 16)
+        .padding(.top, 14)
+    }
+    
+    var projectsScreen: some View {
+        VStack(spacing: 0) {
+            if manager.projects.isEmpty {
+                Spacer()
+                VStack(spacing: 8) {
+                    Text("No projects")
+                        .font(.headline)
+                    Text("Open Settings to add your first project.")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            } else {
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(manager.projects) { project in
+                            ProjectRow(
+                                project: project,
+                                manager: manager,
+                                onShowLogs: { logProject = project }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                }
+            }
+            
+            Divider().padding(.vertical, 10)
+            
+            HStack {
+                Button("Settings") {
+                    screen = .settings
+                }
+                Spacer()
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+        }
+        .sheet(item: $logProject) { project in
+            LogView(manager: manager, project: project)
+        }
     }
 }
 
-struct ProjectCard: View {
+struct ProjectRow: View {
     let project: Project
     @ObservedObject var manager: ProcessManager
-    @Binding var showingLogs: Project?
+    let onShowLogs: () -> Void
     
     var isRunning: Bool {
         manager.isRunning(projectId: project.id)
@@ -81,23 +97,13 @@ struct ProjectCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center) {
+            HStack {
                 HStack(spacing: 6) {
                     Circle()
                         .fill(isRunning ? Color.green : Color.red)
                         .frame(width: 10, height: 10)
-                    
                     Text(project.name)
                         .font(.system(size: 14, weight: .semibold))
-                    
-                    Text(isRunning ? "Running" : "Stopped")
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundColor(isRunning ? .green : .secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(isRunning ? Color.green.opacity(0.15) : Color.gray.opacity(0.15))
-                        .cornerRadius(4)
                 }
                 
                 Spacer()
@@ -106,16 +112,14 @@ struct ProjectCard: View {
                     Button("Restart") {
                         manager.restart(project: project)
                     }
-                    
                     Button("Stop") {
                         manager.stop(projectId: project.id)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
                 } else {
-                    let portOccupied = project.port.map { PortChecker.isPortInUse($0) } ?? false
-                    
-                    if portOccupied {
+                    let occupied = project.port.map { PortChecker.isPortInUse($0) } ?? false
+                    if occupied {
                         Button("Force Start") {
                             manager.killConflictingPortAndStart(project: project)
                         }
@@ -129,44 +133,35 @@ struct ProjectCard: View {
                 }
             }
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(project.path)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(isRunning ? "Running" : "Stopped")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(isRunning ? .green : .secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isRunning ? Color.green.opacity(0.12) : Color.gray.opacity(0.12))
+                    .cornerRadius(4)
                 
-                HStack {
-                    Text(project.command)
+                if let port = project.port {
+                    Text(":\(port)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                    
-                    if let port = project.port {
-                        HStack(spacing: 4) {
-                            Text(":\(port)")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            
-                            if PortChecker.isPortInUse(port) && !isRunning {
-                                Text("occupied")
-                                    .font(.caption2)
-                                    .foregroundColor(.orange)
-                            }
-                        }
+                    if PortChecker.isPortInUse(port) && !isRunning {
+                        Text("occupied")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
                     }
                 }
+                
+                Spacer()
             }
             
             if isRunning {
                 Button("Show Logs") {
-                    showingLogs = project
+                    onShowLogs()
                 }
                 .font(.caption)
-                .sheet(item: $showingLogs) { logProject in
-                    LogView(manager: manager, project: logProject)
-                }
             }
         }
         .padding(12)

@@ -11,6 +11,10 @@ let package = Package(
         .executableTarget(
             name: "AnythingManager",
             swiftSettings: [.unsafeFlags(["-parse-as-library"])]
+        ),
+        .testTarget(
+            name: "AnythingManagerTests",
+            dependencies: ["AnythingManager"]
         )
     ]
 )

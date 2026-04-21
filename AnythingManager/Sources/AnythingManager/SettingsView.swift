@@ -2,55 +2,61 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var manager: ProcessManager
-    @Environment(\.dismiss) private var dismiss
+    let onBack: () -> Void
     @State private var launchAtLogin = false
     @State private var savedToast = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Settings")
                     .font(.headline)
                 Spacer()
-                Button("Done") { dismiss() }
-            }
-            
-            Divider()
-            
-            Toggle("Launch at login", isOn: $launchAtLogin)
-                .onAppear { launchAtLogin = LaunchAtLogin.isEnabled() }
-                .onChange(of: launchAtLogin) { newValue in
-                    LaunchAtLogin.setEnabled(newValue)
+                Button("Back") {
+                    onBack()
                 }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
             
-            Text("Projects")
-                .font(.subheadline)
-                .padding(.top, 8)
+            Divider().padding(.vertical, 10)
             
-            List {
-                ForEach($manager.projects) { $project in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            TextField("Name", text: $project.name)
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Port (optional)", text: portBinding(for: $project))
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 120)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Toggle("Launch at login", isOn: $launchAtLogin)
+                        .onAppear { launchAtLogin = LaunchAtLogin.isEnabled() }
+                        .onChange(of: launchAtLogin) { newValue in
+                            LaunchAtLogin.setEnabled(newValue)
                         }
-                        TextField("Path", text: $project.path)
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Command", text: $project.command)
-                            .textFieldStyle(.roundedBorder)
+                    
+                    Text("Projects")
+                        .font(.subheadline)
+                    
+                    VStack(spacing: 12) {
+                        ForEach($manager.projects) { $project in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    TextField("Name", text: $project.name)
+                                        .textFieldStyle(.roundedBorder)
+                                    TextField("Port", text: portBinding(for: $project))
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 80)
+                                }
+                                TextField("Path", text: $project.path)
+                                    .textFieldStyle(.roundedBorder)
+                                TextField("Command", text: $project.command)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            .padding(10)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(8)
+                        }
                     }
-                    .padding(.vertical, 4)
                 }
-                .onDelete { indexSet in
-                    manager.projects.remove(atOffsets: indexSet)
-                    manager.saveProjects()
-                }
+                .padding(.horizontal, 16)
             }
-            .listStyle(.plain)
-            .frame(minHeight: 180)
+            
+            Divider().padding(.vertical, 10)
             
             HStack {
                 Button("Add Project") {
@@ -71,36 +77,23 @@ struct SettingsView: View {
                     }
                     Button("Save") {
                         manager.saveProjects()
-                        withAnimation {
-                            savedToast = true
-                        }
+                        withAnimation { savedToast = true }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation {
-                                savedToast = false
-                            }
+                            withAnimation { savedToast = false }
                         }
                     }
                     .keyboardShortcut(.defaultAction)
                 }
             }
-            
-            Spacer()
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
         }
-        .padding()
-        .frame(width: 480, height: 420)
     }
     
     private func portBinding(for project: Binding<Project>) -> Binding<String> {
         Binding<String>(
-            get: {
-                if let port = project.wrappedValue.port {
-                    return String(port)
-                }
-                return ""
-            },
-            set: { newValue in
-                project.wrappedValue.port = Int(newValue)
-            }
+            get: { project.wrappedValue.port.map { String($0) } ?? "" },
+            set: { project.wrappedValue.port = Int($0) }
         )
     }
 }
@@ -154,7 +147,6 @@ struct LaunchAtLogin {
         task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         task.arguments = ["unload", plistPath]
         try? task.run()
-        
         try? FileManager.default.removeItem(atPath: plistPath)
     }
 }
