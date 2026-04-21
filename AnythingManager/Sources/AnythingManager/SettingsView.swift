@@ -5,6 +5,8 @@ struct SettingsView: View {
     let onBack: () -> Void
     @State private var launchAtLogin = false
     @State private var savedToast = false
+    @State private var projectToDelete: Project? = nil
+    @State private var showDeleteConfirm = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,6 +31,12 @@ struct SettingsView: View {
                             LaunchAtLogin.setEnabled(newValue)
                         }
                     
+                    if let error = LaunchAtLogin.lastError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    
                     Text("Projects")
                         .font(.subheadline)
                     
@@ -46,6 +54,13 @@ struct SettingsView: View {
                                     .textFieldStyle(.roundedBorder)
                                 TextField("Command", text: $project.command)
                                     .textFieldStyle(.roundedBorder)
+                                
+                                Button("Delete", role: .destructive) {
+                                    projectToDelete = project
+                                    showDeleteConfirm = true
+                                }
+                                .font(.caption)
+                                .controlSize(.small)
                             }
                             .padding(10)
                             .background(Color(nsColor: .controlBackgroundColor))
@@ -88,6 +103,15 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
+        .alert("Delete project?", isPresented: $showDeleteConfirm, presenting: projectToDelete) { project in
+            Button("Delete", role: .destructive) {
+                manager.projects.removeAll { $0.id == project.id }
+                manager.saveProjects()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: { project in
+            Text("Are you sure you want to delete '\(project.name)'?")
+        }
     }
     
     private func portBinding(for project: Binding<Project>) -> Binding<String> {
@@ -98,21 +122,40 @@ struct SettingsView: View {
     }
 }
 
+/// Manages a LaunchAgent plist for running the app at login.
 struct LaunchAtLogin {
     private static var plistPath: String {
         NSString(string: "~/Library/LaunchAgents/com.user.AnythingManager.plist").expandingTildeInPath
     }
     
-    private static var appPath: String {
-        let repoRoot = NSString(string: "/path/to/repo").expandingTildeInPath
-        return "\(repoRoot)/Applications/AnythingManager.app/Contents/MacOS/AnythingManager"
+    /// Derives the .app path dynamically. When running inside a bundled .app we use Bundle.main.
+    /// During development (swift run) we fall back to the repo-relative Applications folder.
+    static var appPath: String {
+        let bundle = Bundle.main
+        if bundle.bundlePath.hasSuffix(".app") {
+            return bundle.bundlePath
+        }
+        // Development fallback: derive from this source file location.
+        let sourceFile = URL(fileURLWithPath: #file)
+        let repoRoot = sourceFile
+            .deletingLastPathComponent() // AnythingManager/
+            .deletingLastPathComponent() // Sources/
+            .deletingLastPathComponent() // AnythingManager/
+            .deletingLastPathComponent() // repo root
+        return repoRoot
+            .appendingPathComponent("Applications")
+            .appendingPathComponent("AnythingManager.app")
+            .path
     }
+    
+    static var lastError: String? = nil
     
     static func isEnabled() -> Bool {
         FileManager.default.fileExists(atPath: plistPath)
     }
     
     static func setEnabled(_ enabled: Bool) {
+        lastError = nil
         if enabled {
             enable()
         } else {
@@ -138,7 +181,7 @@ struct LaunchAtLogin {
             task.arguments = ["load", plistPath]
             try? task.run()
         } catch {
-            print("Failed to enable launch at login: \(error)")
+            lastError = "Failed to enable: \(error.localizedDescription)"
         }
     }
     
@@ -147,6 +190,10 @@ struct LaunchAtLogin {
         task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         task.arguments = ["unload", plistPath]
         try? task.run()
-        try? FileManager.default.removeItem(atPath: plistPath)
+        do {
+            try FileManager.default.removeItem(atPath: plistPath)
+        } catch {
+            lastError = "Failed to disable: \(error.localizedDescription)"
+        }
     }
 }
