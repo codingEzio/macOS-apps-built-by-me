@@ -1,8 +1,6 @@
 import Foundation
 
 struct PortChecker {
-    /// Checks whether anything is listening on the given port.
-    /// Uses lsof with the -sTCP:LISTEN flag to avoid matching outgoing connections.
     static func isPortInUse(_ port: Int) -> Bool {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
@@ -36,12 +34,35 @@ struct PortChecker {
         }
     }
     
+    /// Kills a PID and all of its descendant processes recursively.
+    static func killTree(pid: Int32) {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "pgrep -P \(pid)"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let str = String(data: data, encoding: .utf8) {
+                for child in str.components(separatedBy: .newlines).filter({ !$0.isEmpty }) {
+                    if let childPid = Int32(child) {
+                        killTree(pid: childPid)
+                    }
+                }
+            }
+        } catch {
+            // ignore
+        }
+        kill(pid, 9)
+    }
+    
     static func killPort(_ port: Int) {
-        for pid in pidsUsingPort(port) {
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/bin/kill")
-            task.arguments = ["-9", pid]
-            try? task.run()
+        for pidStr in pidsUsingPort(port) {
+            if let pid = Int32(pidStr) {
+                killTree(pid: pid)
+            }
         }
     }
     
@@ -49,7 +70,7 @@ struct PortChecker {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if !isPortInUse(port) { return true }
-            usleep(100_000)
+            usleep(200_000) // 200 ms
         }
         return !isPortInUse(port)
     }
