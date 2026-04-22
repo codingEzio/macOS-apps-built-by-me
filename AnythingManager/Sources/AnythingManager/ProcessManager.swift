@@ -8,6 +8,7 @@ class ProcessManager: ObservableObject {
     @Published var errors: [UUID: String] = [:]
     @Published var externalRunning: Set<UUID> = []
     @Published var startingProjects: Set<UUID> = []
+    @Published var portOccupancy: [Int: [PortProcessInfo]] = [:]
     @Published var configURL: URL?
     @Published var configMissing: Bool = false
     
@@ -227,14 +228,20 @@ class ProcessManager: ObservableObject {
     
     func scanExternalProcesses() {
         var detected: Set<UUID> = []
+        var occupancy: [Int: [PortProcessInfo]] = [:]
         for project in projects {
             guard let port = project.port else { continue }
-            if PortChecker.isPortInUse(port) && processes[project.id] == nil {
+            let occupants = PortChecker.processesOnPort(port)
+            occupancy[port] = occupants
+            if !occupants.isEmpty && processes[project.id] == nil {
                 detected.insert(project.id)
             }
         }
         if detected != externalRunning {
             externalRunning = detected
+        }
+        if occupancy != portOccupancy {
+            portOccupancy = occupancy
         }
     }
     

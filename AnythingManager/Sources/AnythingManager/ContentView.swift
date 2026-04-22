@@ -4,12 +4,12 @@ struct ContentView: View {
     @ObservedObject var manager: ProcessManager
     @State private var screen: Screen = .projects
     @State private var logProject: Project? = nil
-    
+
     enum Screen {
         case projects
         case settings
     }
-    
+
     var body: some View {
         Group {
             if manager.configMissing {
@@ -19,50 +19,53 @@ struct ContentView: View {
             }
         }
         .frame(width: 380, height: 440)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
-    
+
     var mainView: some View {
         VStack(spacing: 0) {
-            header
-            Divider().padding(.vertical, 10)
             switch screen {
             case .projects:
                 projectsScreen
-                    .transition(.opacity)
             case .settings:
-                SettingsView(manager: manager, onBack: { withAnimation { screen = .projects } })
+                SettingsView(manager: manager, onBack: { screen = .projects })
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.15), value: screen)
     }
-    
-    var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "antenna.radiowaves.left.and.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.accentColor)
-            Text("Anything Manager")
-                .font(.system(size: 14, weight: .bold))
-            Spacer()
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-    }
-    
+
+    // MARK: - Projects Screen
+
     var projectsScreen: some View {
         VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.accentColor)
+                Text("Anything Manager")
+                    .font(.system(size: 14, weight: .bold))
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            // Port banner (external only)
             portStatusBanner
-            
+                .padding(.top, 8)
+
+            // Project list
             if manager.projects.isEmpty {
                 Spacer()
                 emptyState
                 Spacer()
             } else {
-                ScrollView {
-                    VStack(spacing: 12) {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 10) {
                         ForEach(manager.projects) { project in
                             ProjectRow(
                                 project: project,
@@ -73,40 +76,48 @@ struct ContentView: View {
                         }
                     }
                     .padding(.horizontal, 14)
+                    .padding(.vertical, 2)
                 }
             }
-            
-            Divider().padding(.vertical, 10)
-            
+
+            Spacer(minLength: 4)
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            // Bottom bar
             HStack {
                 Button("Settings") {
-                    withAnimation { screen = .settings }
+                    screen = .settings
                 }
+                .font(.system(size: 12))
+
                 Spacer()
+
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
                 }
+                .font(.system(size: 12))
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 12)
+            .padding(.vertical, 10)
         }
         .sheet(item: $logProject) { project in
             LogView(manager: manager, project: project)
         }
     }
-    
+
     @ViewBuilder
     var portStatusBanner: some View {
-        // Only show ports occupied by EXTERNAL processes — skip our own running projects
         let occupiedProjects = manager.projects.compactMap { project -> (Project, [PortProcessInfo])? in
             guard let port = project.port,
                   !manager.isActive(projectId: project.id),
                   !manager.isStarting(projectId: project.id)
             else { return nil }
-            let occupants = PortChecker.processesOnPort(port)
+            let occupants = manager.portOccupancy[port] ?? []
             return occupants.isEmpty ? nil : (project, occupants)
         }
-        
+
         if !occupiedProjects.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
@@ -142,20 +153,20 @@ struct ContentView: View {
             .background(Color.orange.opacity(0.08))
             .cornerRadius(8)
             .padding(.horizontal, 14)
-            .padding(.bottom, 4)
+            .padding(.bottom, 2)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
-    
+
     var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "square.stack.3d.up.slash")
-                .font(.system(size: 32))
-                .foregroundColor(.secondary)
+                .font(.system(size: 28))
+                .foregroundColor(.secondary.opacity(0.6))
             Text("No projects yet")
-                .font(.headline)
+                .font(.system(size: 14, weight: .semibold))
             Text("Open Settings to add your first one.")
-                .font(.callout)
+                .font(.system(size: 12))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -164,30 +175,32 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Config Missing
+
 struct ConfigMissingView: View {
     @ObservedObject var manager: ProcessManager
     @State private var showPicker = false
-    
+
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "doc.badge.gearshape")
                 .font(.system(size: 40))
                 .foregroundColor(.accentColor)
-            
+
             Text("Config file not found")
                 .font(.headline)
-            
+
             Text("The app looks for config.json next to the app bundle or in the source directory. You can also select one manually.")
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
-            
+
             Button("Select config.json…") {
                 pickConfigFile()
             }
             .controlSize(.large)
-            
+
             if let sample = ProcessManager.resolveSampleConfigURL() {
                 Button("Use sample config") {
                     let panel = NSSavePanel()
@@ -206,12 +219,12 @@ struct ConfigMissingView: View {
                 }
                 .font(.caption)
             }
-            
+
             Spacer()
         }
         .padding()
     }
-    
+
     private func pickConfigFile() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
@@ -225,42 +238,45 @@ struct ConfigMissingView: View {
     }
 }
 
+// MARK: - Project Row
+
 struct ProjectRow: View {
     let project: Project
     @ObservedObject var manager: ProcessManager
     let onShowLogs: () -> Void
-    
+
     var isRunning: Bool {
         manager.isRunning(projectId: project.id)
     }
-    
+
     var isExternal: Bool {
         manager.externalRunning.contains(project.id)
     }
-    
+
     var isStarting: Bool {
         manager.startingProjects.contains(project.id)
     }
-    
+
     var isActive: Bool {
         isRunning || isExternal
     }
-    
+
     var hasLogs: Bool {
         manager.logs[project.id]?.isEmpty == false
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Title + action
             HStack {
                 HStack(spacing: 6) {
                     statusIndicator
                     Text(project.name)
                         .font(.system(size: 14, weight: .semibold))
                 }
-                
+
                 Spacer()
-                
+
                 if isStarting {
                     Button(action: {}) {
                         Label("Starting", systemImage: "arrow.triangle.2.circlepath")
@@ -284,7 +300,7 @@ struct ProjectRow: View {
                     }
                     .tint(.orange)
                 } else {
-                    let occupied = project.port.map { PortChecker.isPortInUse($0) } ?? false
+                    let occupied = project.port.map { (manager.portOccupancy[$0] ?? []).isEmpty == false } ?? false
                     if occupied {
                         Button("Force Start") {
                             manager.killConflictingPortAndStart(project: project)
@@ -299,7 +315,8 @@ struct ProjectRow: View {
                     }
                 }
             }
-            
+
+            // Status line
             HStack(spacing: 6) {
                 if isStarting {
                     Label("Starting", systemImage: "arrow.triangle.2.circlepath")
@@ -322,21 +339,23 @@ struct ProjectRow: View {
                         .foregroundColor(.secondary)
                         .statusTag(color: .secondary, bgOpacity: 0.12)
                 }
-                
+
                 if let port = project.port {
                     Text(":\(port)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    if PortChecker.isPortInUse(port) && !isActive && !isStarting {
+                    let occupied = (manager.portOccupancy[port] ?? []).isEmpty == false
+                    if occupied && !isActive && !isStarting {
                         Text("occupied")
                             .font(.caption2)
                             .foregroundColor(.orange)
                     }
                 }
-                
+
                 Spacer()
             }
-            
+
+            // Error
             if let error = manager.errors[project.id] {
                 Text(error)
                     .font(.caption)
@@ -344,13 +363,15 @@ struct ProjectRow: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            
+
+            // Hint text
             if !isActive && !isStarting && !hasLogs {
                 Text("Click Start to run \(project.command)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
+            // Logs button
             if isActive || isStarting {
                 Button("Show Logs") {
                     onShowLogs()
@@ -360,12 +381,11 @@ struct ProjectRow: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
         )
     }
-    
+
     @ViewBuilder
     var statusIndicator: some View {
         if isStarting {
@@ -382,7 +402,7 @@ struct ProjectRow: View {
                 .font(.system(size: 12))
         } else {
             Image(systemName: "bolt.circle")
-                .foregroundColor(.secondary)
+                .foregroundColor(.secondary.opacity(0.7))
                 .font(.system(size: 12))
         }
     }
@@ -401,11 +421,13 @@ extension View {
     }
 }
 
+// MARK: - Log View
+
 struct LogView: View {
     @ObservedObject var manager: ProcessManager
     let project: Project
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -414,7 +436,7 @@ struct LogView: View {
                 Spacer()
                 Button("Close") { dismiss() }
             }
-            
+
             ScrollViewReader { proxy in
                 ScrollView {
                     Text(logText)
@@ -434,7 +456,7 @@ struct LogView: View {
         .padding()
         .frame(width: 640, height: 420)
     }
-    
+
     var logText: String {
         if let text = manager.logs[project.id], !text.isEmpty {
             return text

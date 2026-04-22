@@ -11,9 +11,11 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Divider().padding(.vertical, 10)
+            Divider()
+                .padding(.horizontal, 12)
             settingsScroll
-            Divider().padding(.vertical, 10)
+            Divider()
+                .padding(.horizontal, 12)
             footer
         }
         .alert("Delete project?", isPresented: $showDeleteConfirm, presenting: projectToDelete) { project in
@@ -28,16 +30,21 @@ struct SettingsView: View {
     }
     
     var header: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Image(systemName: "gear")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.accentColor)
             Text("Settings")
-                .font(.headline)
+                .font(.system(size: 14, weight: .bold))
             Spacer()
             Button("Back") {
                 onBack()
             }
+            .font(.system(size: 12))
         }
         .padding(.horizontal, 16)
-        .padding(.top, 4)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
     
     var settingsScroll: some View {
@@ -128,7 +135,7 @@ struct SettingsView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 12)
+        .padding(.vertical, 10)
     }
 }
 

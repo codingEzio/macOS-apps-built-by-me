@@ -1,6 +1,6 @@
 import Foundation
 
-struct PortProcessInfo: Identifiable {
+struct PortProcessInfo: Identifiable, Equatable {
     let pid: String
     let name: String
     let ppid: String?
