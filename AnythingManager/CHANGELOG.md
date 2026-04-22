@@ -19,6 +19,10 @@
 - **Invisible idle icon** — Changed idle color from `.secondaryLabelColor` (invisible on dark menu bars) to `.labelColor`.
 - **Duplicate headers** — Settings no longer renders nested under a redundant "Anything Manager" header; it replaces the entire content area.
 - **Blank title-bar space** — Removed wasted padding above the header by using `.fullSizeContentView` instead of a visible title bar.
+- **Data-loss on file select** — `setConfigURL()` no longer overwrites an existing user-selected file with placeholder JSON when the file isn't valid project config.
+- **Process memory leak** — `terminationHandler` now removes exited processes from the `processes` dictionary and nils out the `readabilityHandler`, preventing leaked `Process` + `Pipe` objects.
+- **Log dictionary leak** — System messages now use a fixed UUID instead of `UUID()` random keys, stopping unbounded growth of the `logs` dictionary.
+- **Main-thread blocking** — `scanExternalProcesses()` now runs `lsof`/`ps` on `DispatchQueue.global(.utility)` and updates `@Published` state back on the main queue. No more UI stutter every 3 seconds.
 
 ---
 
