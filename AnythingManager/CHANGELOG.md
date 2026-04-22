@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.5.0 — Lockdown
+
+### Security
+- **Process-kill whitelist** — `killPort()` now verifies the listener's process name against a whitelist of known dev-server names (`node`, `next`, `bun`, `npm`, `python`, `vite`, etc.) before sending `SIGKILL`. Unknown processes are logged and skipped.
+- **Parent-kill guard** — The parent PID is only killed if the parent's name also matches the dev-server whitelist. Previously the parent was killed unconditionally, which could destroy the user's interactive shell or Terminal.
+- **Chrome no longer murdered** — `pidsUsingPort()` now uses `lsof -ti :PORT -sTCP:LISTEN` so it returns only the actual listener, not every process with an open client connection (e.g. a browser tab pointing at `localhost:3000`).
+- **Shell injection fixed** — `start()` now sets the working directory via `Process.currentDirectoryURL` instead of embedding the path in a shell command string (`cd <path> && ...`). A malicious `project.path` can no longer inject arbitrary commands.
+
+### Added
+- **Click outside to dismiss** — Clicking anywhere outside the panel (desktop, another app, another menu-bar item) automatically closes it, matching native macOS menu-bar app behavior.
+- **Port occupancy cache** — Port scan results are cached in `ProcessManager` and refreshed every 3s. Views read from the cache instead of spawning `lsof`/`ps` during SwiftUI body evaluation, eliminating AttributeGraph cycles and UI freezes.
+- **`isStarting` state** — Projects show a "Starting" spinner while the dev server boots, preventing accidental double-clicks.
+
+### Fixed
+- **Invisible panel** — Switched from `.borderless` to `.titled` + `.fullSizeContentView` with a transparent title bar. Borderless windows cannot become key, so `makeKeyAndOrderFront` failed and the panel was invisible/unclickable.
+- **Dead Settings button** — Removed `withAnimation` wrappers around `screen` state changes inside the `NSPanel`. These deadlocked SwiftUI's render server in a non-activating panel.
+- **Invisible idle icon** — Changed idle color from `.secondaryLabelColor` (invisible on dark menu bars) to `.labelColor`.
+- **Duplicate headers** — Settings no longer renders nested under a redundant "Anything Manager" header; it replaces the entire content area.
+- **Blank title-bar space** — Removed wasted padding above the header by using `.fullSizeContentView` instead of a visible title bar.
+
+---
+
 ## v0.4.0 — Immortal Process
 
 ### Fixed
