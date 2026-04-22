@@ -379,6 +379,7 @@ class ProcessManager: ObservableObject {
     func stop(projectId: UUID) {
         startingProjects.remove(projectId)
         guard let process = processes[projectId] else {
+            errors.removeValue(forKey: projectId)
             externalRunning.remove(projectId)
             objectWillChange.send()
             return

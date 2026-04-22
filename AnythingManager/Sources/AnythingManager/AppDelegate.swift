@@ -95,7 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// can handle open/close without fighting the monitor.
     private func startClickMonitor() {
         stopClickMonitor() // prevent duplicate monitors
-        clickMonitor = NSEvent.addGlobalMonitorForEventsMatchingMask([.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self = self, self.panel.isVisible else { return }
 
             let clickLocation = NSEvent.mouseLocation

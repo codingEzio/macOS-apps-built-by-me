@@ -65,7 +65,7 @@ struct ContentView: View {
                 Spacer()
             } else {
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 8) {
                         ForEach(manager.projects) { project in
                             ProjectRow(
                                 project: project,
@@ -119,7 +119,7 @@ struct ContentView: View {
         }
 
         if !occupiedProjects.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
@@ -130,23 +130,10 @@ struct ContentView: View {
                         .foregroundColor(.orange)
                     Spacer()
                 }
-                ForEach(occupiedProjects, id: \.0.id) { project, occupants in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(project.name) :\(project.port ?? 0)")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                        ForEach(occupants) { proc in
-                            if let ppid = proc.ppid, let parentName = proc.parentName {
-                                Text("  PID \(proc.pid) \(proc.name) ← PPID \(ppid) \(parentName)")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("  PID \(proc.pid) \(proc.name)")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
+                ForEach(occupiedProjects, id: \.0.id) { project, _ in
+                    Text("\(project.name) :\(project.port ?? 0)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
             }
             .padding(8)
@@ -162,7 +149,7 @@ struct ContentView: View {
         VStack(spacing: 10) {
             Image(systemName: "square.stack.3d.up.slash")
                 .font(.system(size: 28))
-                .foregroundColor(.secondary.opacity(0.6))
+                .foregroundColor(.secondary.opacity(0.5))
             Text("No projects yet")
                 .font(.system(size: 14, weight: .semibold))
             Text("Open Settings to add your first one.")
@@ -266,38 +253,45 @@ struct ProjectRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Title + action
-            HStack {
+        VStack(alignment: .leading, spacing: 8) {
+            // Title + action buttons
+            HStack(spacing: 8) {
                 HStack(spacing: 6) {
-                    statusIndicator
+                    statusDot
                     Text(project.name)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                 }
 
                 Spacer()
 
                 if isStarting {
-                    Button(action: {}) {
-                        Label("Starting", systemImage: "arrow.triangle.2.circlepath")
+                    HStack(spacing: 4) {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 12, height: 12)
+                        Text("Starting")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.accentColor)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(true)
                 } else if isRunning {
                     Button("Restart") {
                         manager.restart(project: project)
                     }
+                    .font(.system(size: 11))
                     .keyboardShortcut("r", modifiers: [.command, .shift])
+
                     Button("Stop") {
                         manager.stop(projectId: project.id)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
+                    .controlSize(.small)
                     .keyboardShortcut(".", modifiers: .command)
                 } else if isExternal {
                     Button("Take Over") {
                         manager.killConflictingPortAndStart(project: project)
                     }
+                    .font(.system(size: 11))
                     .tint(.orange)
                 } else {
                     let occupied = project.port.map { (manager.portOccupancy[$0] ?? []).isEmpty == false } ?? false
@@ -305,54 +299,39 @@ struct ProjectRow: View {
                         Button("Force Start") {
                             manager.killConflictingPortAndStart(project: project)
                         }
+                        .font(.system(size: 11))
                         .tint(.orange)
                     } else {
                         Button("Start") {
                             manager.start(project: project)
                         }
                         .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                         .keyboardShortcut("r", modifiers: .command)
                     }
                 }
             }
 
-            // Status line
+            // Status + port + logs
             HStack(spacing: 6) {
-                if isStarting {
-                    Label("Starting", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption2)
-                        .foregroundColor(.accentColor)
-                        .statusTag(color: .accentColor)
-                } else if isRunning {
-                    Label("Running", systemImage: "checkmark.circle.fill")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                        .statusTag(color: .green)
-                } else if isExternal {
-                    Label("External", systemImage: "globe")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                        .statusTag(color: .orange)
-                } else {
-                    Label("Stopped", systemImage: "stop.circle")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .statusTag(color: .secondary, bgOpacity: 0.12)
-                }
+                statusBadge
 
                 if let port = project.port {
                     Text(":\(port)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    let occupied = (manager.portOccupancy[port] ?? []).isEmpty == false
-                    if occupied && !isActive && !isStarting {
-                        Text("occupied")
-                            .font(.caption2)
-                            .foregroundColor(.orange)
-                    }
                 }
 
                 Spacer()
+
+                if isActive || isStarting {
+                    Button(action: onShowLogs) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show logs")
+                }
             }
 
             // Error
@@ -366,58 +345,49 @@ struct ProjectRow: View {
 
             // Hint text
             if !isActive && !isStarting && !hasLogs {
-                Text("Click Start to run \(project.command)")
+                Text(project.command)
                     .font(.caption)
                     .foregroundColor(.secondary)
-            }
-
-            // Logs button
-            if isActive || isStarting {
-                Button("Show Logs") {
-                    onShowLogs()
-                }
-                .font(.caption)
+                    .lineLimit(1)
             }
         }
-        .padding(12)
+        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
     }
 
     @ViewBuilder
-    var statusIndicator: some View {
-        if isStarting {
-            ProgressView()
-                .scaleEffect(0.6)
-                .frame(width: 12, height: 12)
-        } else if isRunning {
-            Image(systemName: "bolt.circle.fill")
-                .foregroundColor(.green)
-                .font(.system(size: 12))
-        } else if isExternal {
-            Image(systemName: "bolt.circle.fill")
-                .foregroundColor(.orange)
-                .font(.system(size: 12))
-        } else {
-            Image(systemName: "bolt.circle")
-                .foregroundColor(.secondary.opacity(0.7))
-                .font(.system(size: 12))
-        }
+    var statusDot: some View {
+        Circle()
+            .fill(isStarting ? Color.accentColor : isRunning ? Color.green : isExternal ? Color.orange : Color.secondary.opacity(0.4))
+            .frame(width: 6, height: 6)
     }
-}
 
-extension View {
-    func statusTag(color: Color, bgOpacity: Double = 0.15) -> some View {
-        self
-            .font(.caption2)
-            .fontWeight(.semibold)
-            .foregroundColor(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(bgOpacity))
-            .cornerRadius(4)
+    @ViewBuilder
+    var statusBadge: some View {
+        if isStarting {
+            Text("Starting")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(.accentColor)
+        } else if isRunning {
+            Text("Running")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(.green)
+        } else if isExternal {
+            Text("External")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(.orange)
+        } else {
+            Text("Stopped")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+        }
     }
 }
 
@@ -434,6 +404,10 @@ struct LogView: View {
                 Text("\(project.name) logs")
                     .font(.headline)
                 Spacer()
+                Button("Clear") {
+                    manager.logs.removeValue(forKey: project.id)
+                }
+                .font(.caption)
                 Button("Close") { dismiss() }
             }
 
@@ -444,7 +418,7 @@ struct LogView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .id("logBottom")
                 }
-                .background(Color.black.opacity(0.05))
+                .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
                 .cornerRadius(6)
                 .onChange(of: manager.logs[project.id]) { _ in
                     withAnimation {

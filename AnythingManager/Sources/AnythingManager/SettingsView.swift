@@ -50,47 +50,56 @@ struct SettingsView: View {
     var settingsScroll: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                    .onAppear { launchAtLogin = LaunchAtLogin.isEnabled() }
-                    .onChange(of: launchAtLogin) { newValue in
-                        LaunchAtLogin.setEnabled(newValue)
+                // Launch at login
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Launch at login", isOn: $launchAtLogin)
+                        .onAppear { launchAtLogin = LaunchAtLogin.isEnabled() }
+                        .onChange(of: launchAtLogin) { newValue in
+                            LaunchAtLogin.setEnabled(newValue)
+                        }
+                    
+                    if let error = LaunchAtLogin.lastError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
                     }
-                
-                if let error = LaunchAtLogin.lastError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
                 }
                 
-                HStack {
-                    Text("Projects")
-                        .font(.subheadline)
-                    Spacer()
-                    Button(action: {
-                        guard let url = manager.configURL else { return }
-                        NSWorkspace.shared.open(url.deletingLastPathComponent())
-                    }) {
-                        Image(systemName: "folder")
-                        Text("Open config folder")
+                // Config file info
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Projects")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Button(action: {
+                            guard let url = manager.configURL else { return }
+                            NSWorkspace.shared.open(url.deletingLastPathComponent())
+                        }) {
+                            Image(systemName: "folder")
+                                .font(.caption)
+                            Text("Open folder")
+                                .font(.caption)
+                        }
+                        .controlSize(.small)
+                        .disabled(manager.configURL == nil)
                     }
-                    .font(.caption)
-                    .controlSize(.small)
-                    .disabled(manager.configURL == nil)
-                }
-                
-                if let url = manager.configURL {
-                    Text(url.path)
+                    
+                    if let url = manager.configURL {
+                        Text(url.path)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    
+                    Text("Edit config.json directly to batch-configure projects.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
                 }
                 
-                Text("Edit config.json directly to batch-configure projects.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                
-                VStack(spacing: 12) {
+                // Project editors
+                VStack(spacing: 10) {
                     ForEach($manager.projects) { $project in
                         ProjectEditorCard(
                             project: $project,
@@ -108,12 +117,16 @@ struct SettingsView: View {
     
     var footer: some View {
         HStack {
-            Button("Add Project") {
+            Button {
                 manager.projects.append(
                     Project(id: UUID(), name: "new-project", path: "", command: "bun run dev", port: nil)
                 )
                 manager.saveProjects()
+            } label: {
+                Image(systemName: "plus")
+                Text("Add")
             }
+            .font(.system(size: 12))
             
             Spacer()
             
@@ -132,6 +145,7 @@ struct SettingsView: View {
                     }
                 }
                 .keyboardShortcut(.defaultAction)
+                .font(.system(size: 12))
             }
         }
         .padding(.horizontal, 16)
