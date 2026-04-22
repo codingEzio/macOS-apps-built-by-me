@@ -24,6 +24,13 @@
 - **Log dictionary leak** — System messages now use a fixed UUID instead of `UUID()` random keys, stopping unbounded growth of the `logs` dictionary.
 - **Main-thread blocking** — `scanExternalProcesses()` now runs `lsof`/`ps` on `DispatchQueue.global(.utility)` and updates `@Published` state back on the main queue. No more UI stutter every 3 seconds.
 
+### Changed (UI/UX)
+- **Cleaner project cards** — Status shown as a colored dot + compact text label instead of bolt icons and heavy background badges. Action buttons use consistent small sizing.
+- **Simpler port banner** — Removed PID/PPID detail dump. Now shows only the project name and port in a clean orange warning strip.
+- **Log viewer** — Added a **Clear** button to wipe a project's log buffer. Background uses native `textBackgroundColor` instead of hard-coded black opacity.
+- **Settings polish** — Grouped sections with clearer spacing. "Add Project" button replaced with a compact icon+label "Add".
+- **Auto-clear errors** — Error messages disappear automatically when you click Start or Stop, so stale red banners don't linger.
+
 ---
 
 ## v0.4.0 — Immortal Process
