@@ -8,6 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var panel: NSPanel!
     let manager = ProcessManager()
     private var cancellables = Set<AnyCancellable>()
+    private var clickMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -71,10 +72,56 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePanel() {
         if panel.isVisible {
-            panel.orderOut(nil)
+            hidePanel()
         } else {
-            positionPanelBelowStatusItem()
-            panel.makeKeyAndOrderFront(nil)
+            showPanel()
+        }
+    }
+
+    private func showPanel() {
+        positionPanelBelowStatusItem()
+        panel.makeKeyAndOrderFront(nil)
+        startClickMonitor()
+    }
+
+    private func hidePanel() {
+        panel.orderOut(nil)
+        stopClickMonitor()
+    }
+
+    /// Hides the panel when the user clicks anywhere outside it
+    /// (including other apps, the desktop, or other menu-bar items).
+    /// Clicks on our own status-bar button are ignored so togglePanel()
+    /// can handle open/close without fighting the monitor.
+    private func startClickMonitor() {
+        stopClickMonitor() // prevent duplicate monitors
+        clickMonitor = NSEvent.addGlobalMonitorForEventsMatchingMask([.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            guard let self = self, self.panel.isVisible else { return }
+
+            let clickLocation = NSEvent.mouseLocation
+
+            // Ignore clicks on the status-bar button — togglePanel handles those.
+            if let button = self.statusItem.button,
+               let buttonWindow = button.window {
+                let buttonScreenRect = buttonWindow.convertToScreen(button.frame)
+                if buttonScreenRect.contains(clickLocation) {
+                    return
+                }
+            }
+
+            // Ignore clicks inside the panel itself.
+            if self.panel.frame.contains(clickLocation) {
+                return
+            }
+
+            self.hidePanel()
+        }
+    }
+
+    private func stopClickMonitor() {
+        if let monitor = clickMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickMonitor = nil
         }
     }
 
