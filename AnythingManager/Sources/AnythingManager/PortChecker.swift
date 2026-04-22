@@ -97,7 +97,13 @@ struct PortChecker {
     
     private static func isSafeToKill(processName name: String) -> Bool {
         let lower = name.lowercased()
-        return safeToKillNames.contains { lower.contains($0) } || lower.hasSuffix("-server")
+        // Use the base name (last path component) so /usr/local/bin/node → node.
+        // Require exact match or a hyphen prefix (node-sass) to avoid substring
+        // false positives like "anodeb" or "monodevelop" matching "node".
+        let baseName = lower.split(separator: "/").last.map(String.init) ?? lower
+        return safeToKillNames.contains { safe in
+            baseName == safe || baseName.hasPrefix("\(safe)-")
+        } || lower.hasSuffix("-server")
     }
     
     /// Kills the PIDs that hold the port AND their parent PIDs — but ONLY if

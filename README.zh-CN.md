@@ -1,21 +1,21 @@
-# macOS Menu-Bar Lab
+# macOS 菜单栏工具实验室
 
-[中文 README](README.zh-CN.md)
+[English README](README.md)
 
-A collection of small macOS apps that live in your menu bar and do one thing well.
-No dock icons. No bloat. Just tools that stay out of your way until you need them.
+一组小而精的 macOS 菜单栏应用，每个只做一件事。
+没有 Dock 图标，没有臃肿功能，只在需要时默默待在菜单栏里。
 
-## What's inside
+## 里面有什么
 
 ```
-    macOS Menu Bar
+    macOS 菜单栏
          │
          ▼
   ┌──┬──┬──┬──┬──┬──⚡──┬──┬──┬──┐
   │  │  │  │  │  │     │  │  │  │
   └──┴──┴──┴──┴──┴─────┴──┴──┴──┘
          │
-    click to open
+      点击打开
          │
          ▼
   ┌─────────────────────────────────────┐
@@ -44,30 +44,24 @@ No dock icons. No bloat. Just tools that stay out of your way until you need the
 
 ### AnythingManager
 
-**The problem:** You open a terminal, run `bun run dev`, and now you have a terminal
-window you can't close because it holds your server. You forget it's there. You open
-another terminal. Now you have two servers fighting for the same port.
+**问题：** 你打开终端，运行 `bun run dev`，然后这个终端窗口就不能关了，因为里面跑着你的开发服务器。你忘了它的存在，又打开一个终端，现在两个服务器在抢同一个端口。
 
-**The fix:** AnythingManager lives in your menu bar. Click it → see your projects →
-hit Start. The server runs in the background. Close the panel. Forget about it.
+**解决：** AnythingManager 住在你的菜单栏里。点一下 → 看到项目列表 → 点 **Start**。服务器在后台跑起来。关掉面板，忘记它。
 
-- **Start / Stop / Restart** any project with one click
-- **Takes over stray servers** — if a port is occupied, it kills the old process and
-  starts yours
-- **Detects external processes** — if you started a server in a terminal earlier, it
-  shows "External" and lets you reclaim it
-- **Survives app restarts** — rebuild and relaunch; your servers keep running
-- **Shows logs** — view the last 10K characters of output without opening a terminal
+- **一键 Start / Stop / Restart**，不用终端
+- **自动接管端口** — 端口被占了？它会干掉旧进程，启动你的
+- **检测外部进程** — 如果你之前在终端里启动过服务器，它会显示 "External"，让你一键接管
+- **重建后仍然能控制** — 用 `./restart-app.sh` 重新编译并重启应用，你的服务器继续运行，新应用自动检测到它们
+- **查看日志** — 不用开终端就能看到最近 1 万字的输出
 
 ```bash
 cd AnythingManager
 ./restart-app.sh
 ```
 
-## What's coming
+## 接下来会有什么
 
-More single-purpose menu-bar tools. Each app gets its own folder with a
-`config.sample.json` and a `restart-app.sh`.
+更多单一用途的菜单栏工具。每个应用有自己的文件夹，里面包含 `config.sample.json` 和 `restart-app.sh`。
 
 ```
 .
@@ -75,25 +69,25 @@ More single-purpose menu-bar tools. Each app gets its own folder with a
 │   ├── config.sample.json
 │   ├── build-app.sh
 │   └── restart-app.sh
-├── NextApp/          (maybe a clipboard manager?)
-└── AnotherApp/       (maybe a quick notes app?)
+├── NextApp/          （也许是剪贴板管理器？）
+└── AnotherApp/       （也许是快速笔记？）
 ```
 
-## Build one yourself
+## 自己写一个
 
-Each app is a Swift Package Manager project. Build script included.
+每个应用都是 Swift Package Manager 项目，自带编译脚本。
 
 ```bash
 cd AnythingManager
-./build-app.sh        # builds the .app
-./restart-app.sh      # rebuild + kill old + launch new
+./build-app.sh        # 编译成 .app
+./restart-app.sh      # 重新编译 + 杀掉旧进程 + 启动新的
 ```
 
-## Requirements
+## 环境要求
 
 - macOS 13+
-- Swift 5.9+ (Command Line Tools)
+- Swift 5.9+（命令行工具即可）
 
 ---
 
-*Built for my own workflow. Shared in case it's useful for yours.*
+*为我自己工作流打造的工具。如果你觉得有用，拿去用。*

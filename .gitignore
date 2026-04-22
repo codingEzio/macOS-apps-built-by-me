@@ -9,7 +9,7 @@
 # === ROOT ALLOWLIST ===
 !.gitignore
 !.gitmessage
-!README.md
+!README*.md
 !AGENTS.sample.md
 
 # Root directories
@@ -25,7 +25,7 @@ AnythingManager/*
 !AnythingManager/Package.swift
 !AnythingManager/build-app.sh
 !AnythingManager/restart-app.sh
-!AnythingManager/README.md
+!AnythingManager/README*.md
 !AnythingManager/CHANGELOG.md
 
 # Subdirectories

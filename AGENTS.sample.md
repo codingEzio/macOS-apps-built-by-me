@@ -46,6 +46,24 @@ repo-root/
 - Must be fully de-sensitized: no personal paths, no machine-specific values.
 - Updated only when a feature or fix is fully done and tested.
 
+## Multi-Language Documentation
+
+### README Structure
+- Every app directory and the repo root must have an English `README.md` as the canonical source.
+- A Chinese translation `README.zh-CN.md` must be kept in sync with the English version.
+- When the English README is updated (features, structure, ASCII art, build instructions), the Chinese README must be updated to match.
+
+### Sync Rules
+- **Translate** explanations, descriptions, and plain-English sections.
+- **Keep in English**: code blocks, shell commands, file paths, UI labels (Start/Stop/Restart/etc.), and brand/tool names.
+- **Keep in sync**: ASCII art mockups must reflect the same UI layout; if the app UI changes, update art in both languages.
+- **Add cross-links**: Each README must link to its translation counterpart at the top.
+
+### ASCII Art Standards
+- Use box-drawing characters (`│` `─` `┌` `┐` `└` `┘`) for clean lines.
+- Keep width ≤ 80 columns so it renders well on mobile and in terminal.
+- Art must reflect the actual UI: status dots, button positions, panel layout.
+
 ### Responsibility Split
 - TODO holds the **process**; CHANGELOG holds the **outcome**.
 - A TODO item must be checked off before its CHANGELOG entry is written.
