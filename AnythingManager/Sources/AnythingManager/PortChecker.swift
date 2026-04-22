@@ -87,15 +87,40 @@ struct PortChecker {
         }
     }
     
-    /// Kills the PIDs that hold the port AND their parent PIDs.
-    /// Next.js spawns a child next-server that holds the port; killing only the child
-    /// lets the parent respawn it. We kill both so the server dies for real.
+    /// Known dev-server process name fragments. We ONLY kill processes whose
+    /// names contain one of these — never system services, browsers, shells, etc.
+    private static let safeToKillNames: [String] = [
+        "node", "next", "bun", "npm", "pnpm", "yarn", "deno",
+        "python", "python3", "ruby", "php", "go", "vite",
+        "esbuild", "webpack", "rollup", "parcel", "turbo"
+    ]
+    
+    private static func isSafeToKill(processName name: String) -> Bool {
+        let lower = name.lowercased()
+        return safeToKillNames.contains { lower.contains($0) } || lower.hasSuffix("-server")
+    }
+    
+    /// Kills the PIDs that hold the port AND their parent PIDs — but ONLY if
+    /// both the listener and the parent look like dev-server processes.
+    /// Next.js spawns a child next-server that holds the port; killing only the
+    /// child lets the parent respawn it. We kill both so the server dies for real.
     static func killPort(_ port: Int) {
         let pids = Set(pidsUsingPort(port))
-        var allPids = pids
+        var allPids = Set<String>()
         for pidStr in pids {
+            let name = processName(pid: pidStr)
+            guard isSafeToKill(processName: name) else {
+                print("[AnythingManager] Refusing to kill unknown process '\(name)' (PID \(pidStr)) on port \(port)")
+                continue
+            }
+            allPids.insert(pidStr)
             if let ppid = parentPid(of: pidStr) {
-                allPids.insert(ppid)
+                let parentName = processName(pid: ppid)
+                // Only kill parent if it's ALSO a dev process — never kill
+                // shells, Terminal, launchd, or system services.
+                if isSafeToKill(processName: parentName) {
+                    allPids.insert(ppid)
+                }
             }
         }
         for pidStr in allPids {

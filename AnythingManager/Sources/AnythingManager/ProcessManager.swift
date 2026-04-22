@@ -301,7 +301,8 @@ class ProcessManager: ObservableObject {
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-il", "-c", "cd \(expandedPath) && \(project.command)"]
+        process.currentDirectoryURL = URL(fileURLWithPath: expandedPath)
+        process.arguments = ["-il", "-c", project.command]
         
         let pipe = Pipe()
         process.standardOutput = pipe
