@@ -75,7 +75,7 @@ class ProcessManager: ObservableObject {
             let oldProjects = projects
             loadProjects()
             if projects != oldProjects {
-                appendLog(projectId: UUID(), text: "[Config reloaded from disk]\n")
+                appendLog(projectId: Self.systemLogId, text: "[Config reloaded from disk]\n")
                 objectWillChange.send()
             }
         }
@@ -136,23 +136,12 @@ class ProcessManager: ObservableObject {
     }
     
     /// Binds the manager to a user-selected config file and loads it.
+    /// Does NOT overwrite existing files — if the selected file has content
+    /// that isn't valid project JSON, we leave it alone and show an empty state.
     func setConfigURL(_ url: URL) {
         configURL = url
         configMissing = false
         loadProjects()
-        if projects.isEmpty {
-            if let sampleURL = Self.resolveSampleConfigURL() {
-                do {
-                    let data = try Data(contentsOf: sampleURL)
-                    projects = try JSONDecoder().decode([Project].self, from: data)
-                } catch {
-                    projects = [Project.placeholder()]
-                }
-            } else {
-                projects = [Project.placeholder()]
-            }
-            saveProjects()
-        }
         objectWillChange.send()
     }
     
@@ -227,21 +216,32 @@ class ProcessManager: ObservableObject {
     }
     
     func scanExternalProcesses() {
-        var detected: Set<UUID> = []
-        var occupancy: [Int: [PortProcessInfo]] = [:]
-        for project in projects {
-            guard let port = project.port else { continue }
-            let occupants = PortChecker.processesOnPort(port)
-            occupancy[port] = occupants
-            if !occupants.isEmpty && processes[project.id] == nil {
-                detected.insert(project.id)
+        // Capture immutable snapshots on the main actor, then do the
+        // blocking lsof/ps work on a background queue.
+        let projectsSnapshot = projects
+        let managedIds = Set(processes.keys)
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            var detected: Set<UUID> = []
+            var occupancy: [Int: [PortProcessInfo]] = [:]
+            for project in projectsSnapshot {
+                guard let port = project.port else { continue }
+                let occupants = PortChecker.processesOnPort(port)
+                occupancy[port] = occupants
+                if !occupants.isEmpty && !managedIds.contains(project.id) {
+                    detected.insert(project.id)
+                }
             }
-        }
-        if detected != externalRunning {
-            externalRunning = detected
-        }
-        if occupancy != portOccupancy {
-            portOccupancy = occupancy
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if detected != self.externalRunning {
+                    self.externalRunning = detected
+                }
+                if occupancy != self.portOccupancy {
+                    self.portOccupancy = occupancy
+                }
+            }
         }
     }
     
@@ -315,14 +315,17 @@ class ProcessManager: ObservableObject {
                 self?.appendLog(projectId: project.id, text: str)
             }
         }
-        
+
         process.terminationHandler = { [weak self] _ in
+            // Nil out the handler to release the Pipe and break the retain cycle.
+            pipe.fileHandleForReading.readabilityHandler = nil
             Task { @MainActor [weak self] in
-                self?.startingProjects.remove(project.id)
-                self?.objectWillChange.send()
-                if let reason = self?.terminationReason(for: project) {
-                    self?.appendLog(projectId: project.id, text: "[Process exited: \(reason)]\n")
-                }
+                guard let self = self else { return }
+                self.startingProjects.remove(project.id)
+                self.processes.removeValue(forKey: project.id)
+                self.objectWillChange.send()
+                let reason = self.terminationReason(for: project)
+                self.appendLog(projectId: project.id, text: "[Process exited: \(reason)]\n")
             }
         }
         
@@ -440,6 +443,11 @@ class ProcessManager: ObservableObject {
         }
     }
     
+    /// Fixed UUID for system-level log messages (config reloads, etc.).
+    /// Using a random UUID for every system message would leak memory
+    /// because each random key creates a permanent dictionary entry.
+    private static let systemLogId = UUID()
+
     private func appendLog(projectId: UUID, text: String) {
         let current = logs[projectId] ?? ""
         let combined = current + text
