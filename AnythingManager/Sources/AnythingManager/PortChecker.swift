@@ -28,7 +28,7 @@ struct PortChecker {
     static func pidsUsingPort(_ port: Int) -> [String] {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        task.arguments = ["-ti", ":\(port)"]
+        task.arguments = ["-ti", ":\(port)", "-sTCP:LISTEN"]
         let pipe = Pipe()
         task.standardOutput = pipe
         do {
