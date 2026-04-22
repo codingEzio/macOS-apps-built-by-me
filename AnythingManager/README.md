@@ -2,51 +2,32 @@
 
 [中文 README](README.zh-CN.md)
 
-A macOS menu-bar app that starts, stops, and monitors your local dev servers
-(`bun run dev`, `next dev`, `python -m http.server`, etc.) without keeping a
-terminal window open.
+A macOS menu-bar app that starts, stops, and monitors your local dev servers (`bun run dev`, `next dev`, `python -m http.server`, etc.) without keeping a terminal window open.
 
 ```
-    Menu Bar
-       │
-       ▼
-┌──┬──┬──┬──┬──┬──⚡──┬──┬──┬──┐
-│  │  │  │  │  │     │  │  │  │
-└──┴──┴──┴──┴──┴─────┴──┴──┴──┘
-       │
-   click to open
-       │
-       ▼
-┌──────────────────────────────────────┐
-│  📡  Anything Manager                │
-│  ─────────────────────────────────   │
-│                                      │
-│  ┌────────────────────────────────┐  │
-│  │ ● my-website         [Take Over]│  │
-│  │   External            :3000     │  │
-│  └────────────────────────────────┘  │
-│  ┌────────────────────────────────┐  │
-│  │ ● my-api           [Restart][Stop]│ │
-│  │   Running             :3001   [📄]│  │
-│  └────────────────────────────────┘  │
-│  ┌────────────────────────────────┐  │
-│  │ ● static-site          [Start] │  │
-│  │   Stopped             :3002     │  │
-│  └────────────────────────────────┘  │
-│                                      │
-│  [Settings]              [Quit]      │
-└──────────────────────────────────────┘
+     menu bar
+        │
+        ▼
+  ┌──┬──┬──⚡──┬──┬──┐
+  └──┴──┴─────┴──┴──┘
+        │
+        ▼
+  ┌────────────────────────┐
+  │ 📡 Anything Manager    │
+  │ ────────────────────── │
+  │ 🟢 api     :3001 [■]   │
+  │ 🟡 web     :3000 [⚡]   │
+  │ ⚪ blog    :3002 [▶]   │
+  │ ────────────────────── │
+  │ [Settings]   [Quit]    │
+  └────────────────────────┘
 ```
 
 ## What it does, in plain English
 
 **The problem it solves:**
 
-You work on a Next.js site and a Node API. Every morning you open two terminal
-windows, `cd` into each project, and run `bun run dev`. Those terminals sit there
-taking up space. You accidentally close one. You forget which port is which. You
-start a second copy and get "EADDRINUSE". You hunt down the old process with
-`lsof` and `kill`. It's annoying.
+You work on a Next.js site and a Node API. Every morning you open two terminal windows, `cd` into each project, and run `bun run dev`. Those terminals sit there taking up space. You accidentally close one. You forget which port is which. You start a second copy and get "EADDRINUSE". You hunt down the old process with `lsof` and `kill`. It's annoying.
 
 **What this app does:**
 
@@ -54,8 +35,7 @@ start a second copy and get "EADDRINUSE". You hunt down the old process with
 2. The app lives in your menu bar. Click it, hit **Start**, close it.
 3. Your server runs in the background. No terminal window needed.
 4. The icon turns **green** when servers are running, **gray** when stopped.
-5. If a port is occupied — even by a stray terminal session you forgot about —
-   the app detects it, kills the old process, and starts yours.
+5. If a port is occupied — even by a stray terminal session you forgot about — the app detects it, kills the old process, and starts yours.
 
 ## Features
 
@@ -116,13 +96,10 @@ Or edit `config.json` directly. A `config.sample.json` is provided as a template
 
 ## Security Notes
 
-- **Only dev-server processes are killed.** `killPort()` checks the process name
-  against a whitelist (`node`, `next`, `bun`, `npm`, `python`, `vite`, etc.).
-  It will never kill Chrome, system services, or unknown processes.
-- **Parent processes are only killed if they're also dev servers.** Your shell
-  and Terminal are never touched.
-- **No shell injection.** The working directory is set via `Process.currentDirectoryURL`,
-  not by embedding paths in shell command strings.
+- **Only dev-server processes are killed.** `killPort()` checks the process name against a whitelist (`node`, `next`, `bun`, `npm`, `python`, `vite`, etc.). It will never kill Chrome, system services, or unknown processes.
+- **Parent processes are only killed if they're also dev servers.** Your shell and Terminal are never touched.
+- **No shell injection.** The working directory is set via `Process.currentDirectoryURL`, not by embedding paths in shell command strings.
+- **Strict name matching.** The whitelist uses exact base-name match or hyphen-prefix (`node-sass` matches `node`, but `anodeb` does not).
 
 ## Requirements
 

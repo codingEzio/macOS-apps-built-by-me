@@ -2,62 +2,28 @@
 
 [中文 README](README.zh-CN.md)
 
-A collection of small macOS apps that live in your menu bar and do one thing well.
-No dock icons. No bloat. Just tools that stay out of your way until you need them.
-
-## What's inside
+Small macOS menu-bar apps. One job each. No dock icon. No bloat.
 
 ```
-    macOS Menu Bar
-         │
-         ▼
-  ┌──┬──┬──┬──┬──┬──⚡──┬──┬──┬──┐
-  │  │  │  │  │  │     │  │  │  │
-  └──┴──┴──┴──┴──┴─────┴──┴──┴──┘
-         │
-    click to open
-         │
-         ▼
-  ┌─────────────────────────────────────┐
-  │  📡  Anything Manager               │
-  │  ─────────────────────────────────  │
-  │                                     │
-  │  ┌──────────────────────────────┐   │
-  │  │ 🟡 my-website                │   │
-  │  │    External        :3000     │   │
-  │  │                [Take Over]   │   │
-  │  └──────────────────────────────┘   │
-  │  ┌──────────────────────────────┐   │
-  │  │ 🟢 my-api                    │   │
-  │  │    Running         :3001     │   │
-  │  │          [Restart]  [Stop]   │   │
-  │  └──────────────────────────────┘   │
-  │  ┌──────────────────────────────┐   │
-  │  │ ⚪ static-site               │   │
-  │  │    Stopped         :3002     │   │
-  │  │                  [Start]     │   │
-  │  └──────────────────────────────┘   │
-  │                                     │
-  │  [Settings]              [Quit]     │
-  └─────────────────────────────────────┘
+  [⚡]  →  ┌─────────────────────┐
+           │  📡 Anything Manager│
+           │  🟢 api    :3001 [■]│
+           │  ⚪ web    :3000 [▶]│
+           │  [Settings]  [Quit] │
+           └─────────────────────┘
 ```
 
 ### AnythingManager
 
-**The problem:** You open a terminal, run `bun run dev`, and now you have a terminal
-window you can't close because it holds your server. You forget it's there. You open
-another terminal. Now you have two servers fighting for the same port.
+**The problem:** You open a terminal, run `bun run dev`, and now you can't close that window because it holds your server. You forget it's there. You open another terminal. Now two servers fight for the same port.
 
-**The fix:** AnythingManager lives in your menu bar. Click it → see your projects →
-hit Start. The server runs in the background. Close the panel. Forget about it.
+**The fix:** Click the bolt icon in your menu bar → see your projects → hit **Start**. The server runs in the background. Close the panel. Forget about it.
 
-- **Start / Stop / Restart** any project with one click
-- **Takes over stray servers** — if a port is occupied, it kills the old process and
-  starts yours
-- **Detects external processes** — if you started a server in a terminal earlier, it
-  shows "External" and lets you reclaim it
-- **Survives app restarts** — rebuild and relaunch; your servers keep running
-- **Shows logs** — view the last 10K characters of output without opening a terminal
+- Start / Stop / Restart any project with one click
+- Takes over stray servers — port occupied? It kills the old process and starts yours
+- Detects external processes — started a server in a terminal earlier? Shows "External", lets you reclaim it
+- Survives app restarts — rebuild and relaunch; your servers keep running
+- Shows logs — view the last 10K of output without opening a terminal
 
 ```bash
 cd AnythingManager
@@ -66,8 +32,7 @@ cd AnythingManager
 
 ## What's coming
 
-More single-purpose menu-bar tools. Each app gets its own folder with a
-`config.sample.json` and a `restart-app.sh`.
+More single-purpose menu-bar tools. Each app gets its own folder with a `config.sample.json` and a `restart-app.sh`.
 
 ```
 .
@@ -75,8 +40,8 @@ More single-purpose menu-bar tools. Each app gets its own folder with a
 │   ├── config.sample.json
 │   ├── build-app.sh
 │   └── restart-app.sh
-├── NextApp/          (maybe a clipboard manager?)
-└── AnotherApp/       (maybe a quick notes app?)
+├── NextApp/          (clipboard manager?)
+└── AnotherApp/       (quick notes?)
 ```
 
 ## Build one yourself
